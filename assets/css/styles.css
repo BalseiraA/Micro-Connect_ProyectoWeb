@@ -1,0 +1,167 @@
+:root {
+  --app-font-size: 16px;
+
+  --bg-main: #f8fafc;
+  --bg-sidebar: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-soft: #f1f5f9;
+
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+
+  --border-main: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+}
+
+html.dark {
+  --bg-main: #020617;
+  --bg-sidebar: #020617;
+  --bg-panel: #0f172a;
+  --bg-soft: #1e293b;
+
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+
+  --border-main: #1e293b;
+  --border-strong: #334155;
+
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+}
+
+html,
+body {
+  min-height: 100%;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-size: var(--app-font-size);
+}
+
+/* Evita que Tailwind deje fondos raros cuando cambias de tema */
+body {
+  background-color: var(--bg-main) !important;
+  color: var(--text-main) !important;
+}
+
+/* Layout */
+aside {
+  background-color: var(--bg-sidebar) !important;
+  border-color: var(--border-main) !important;
+}
+
+main {
+  background-color: var(--bg-main);
+}
+
+/* Tarjeta de perfil */
+aside > div {
+  background-color: var(--bg-soft) !important;
+  color: var(--text-main);
+  border: 1px solid var(--border-main);
+}
+
+/* Botones del menú */
+.tab-btn {
+  color: var(--text-muted);
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+
+.tab-btn:hover {
+  background-color: var(--bg-soft);
+  color: var(--text-main);
+  transform: translateX(2px);
+}
+
+.active-tab {
+  background-color: var(--primary) !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.25);
+}
+
+/* Paneles principales */
+.panel,
+.composer,
+.post-card {
+  background-color: var(--bg-panel) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-main) !important;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+}
+
+/* Textos secundarios */
+.text-slate-500,
+.text-slate-600,
+.dark .text-slate-400 {
+  color: var(--text-muted) !important;
+}
+
+/* Inputs y textarea */
+textarea,
+input[type="text"],
+input[type="password"],
+input[type="range"] {
+  color: var(--text-main);
+}
+
+textarea {
+  background-color: var(--bg-soft) !important;
+  border-color: var(--border-main) !important;
+  color: var(--text-main) !important;
+  resize: vertical;
+}
+
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+/* Input de imagen */
+input[type="file"] {
+  color: var(--text-muted);
+}
+
+/* Botones generales */
+button {
+  cursor: pointer;
+}
+
+/* Botón publicar */
+button[type="submit"] {
+  background-color: var(--primary) !important;
+}
+
+button[type="submit"]:hover {
+  background-color: var(--primary-hover) !important;
+}
+
+/* Botones de configuración */
+.theme-btn {
+  background-color: var(--bg-soft);
+  color: var(--text-main);
+  border-color: var(--border-strong) !important;
+  transition: all 0.2s ease;
+}
+
+.theme-btn:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary);
+}
+
+/* Título */
+#screenTitle {
+  color: var(--text-main);
+}
+
+/* Imágenes en posts */
+.post-card img {
+  border: 1px solid var(--border-main);
+}

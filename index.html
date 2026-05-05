@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Micro-Connect | Iniciar sesión</title>
+  <script>tailwind = window.tailwind || {}; tailwind.config = { darkMode: "class" };</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href=".\assets\css\styles.css"/>
+  <style>
+    .login-bg { background: radial-gradient(circle at top right, #2563eb 0%, #7c3aed 50%, #0f172a 100%); }
+    .input-invalid { border-color: #dc2626; box-shadow: 0 0 0 2px rgb(220 38 38 / 0.2); }
+    .input-valid { border-color: #16a34a; box-shadow: 0 0 0 2px rgb(22 163 74 / 0.2); }
+  </style>
+</head>
+<body class="min-h-screen login-bg text-slate-900">
+  <main class="min-h-screen grid place-items-center p-4">
+    <section class="w-full max-w-md bg-white/95 rounded-2xl shadow-xl p-6 sm:p-8">
+      <h1 class="text-3xl font-bold mb-2">Micro-Connect</h1>
+      <p class="text-slate-600 mb-6">Inicia sesión para continuar.</p>
+
+      <form id="loginForm" action=".\views\home.html" method="get" novalidate class="space-y-4">
+        <div>
+          <label for="username" class="block text-sm font-medium mb-1">Usuario</label>
+          <input id="username" name="username" type="text" required minlength="3" maxlength="30" pattern="[a-zA-Z0-9_]{3,30}"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+          <p id="usernameError" class="text-sm text-red-600 mt-1 hidden"></p>
+        </div>
+
+        <div>
+          <label for="password" class="block text-sm font-medium mb-1">Contraseña</label>
+          <input id="password" name="password" type="password" required minlength="6" maxlength="50"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+          <p id="passwordError" class="text-sm text-red-600 mt-1 hidden"></p>
+        </div>
+
+        <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition">
+          Iniciar Sesión
+        </button>
+        <p id="loginError" class="text-sm text-red-600 hidden"></p>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    document.body.classList.add('theme-light');
+
+    (() => {
+      const form = document.getElementById('loginForm');
+      form.dataset.enhanced = 'true';
+      const username = document.getElementById('username');
+      const password = document.getElementById('password');
+      const usernameError = document.getElementById('usernameError');
+      const passwordError = document.getElementById('passwordError');
+      const loginError = document.getElementById('loginError');
+      const fallbackUsers = [
+        { username: 'usuario', password: 'pass1234' },
+        { username: 'maria', password: 'react2026' }
+      ];
+
+      const sanitize = (v) => String(v).replace(/[&<>'"`]/g, '').trim();
+
+      const showFieldError = (input, errorEl, message) => {
+        errorEl.textContent = message;
+        errorEl.classList.toggle('hidden', !message);
+        input.classList.toggle('input-invalid', !!message);
+        input.classList.toggle('input-valid', !message && input.value.trim().length > 0);
+      };
+
+      const validateUsername = () => {
+        const value = sanitize(username.value);
+        username.value = value;
+        if (!value) return showFieldError(username, usernameError, 'El usuario es obligatorio.');
+        if (!/^[a-zA-Z0-9_]{3,30}$/.test(value)) {
+          return showFieldError(username, usernameError, 'Usa 3-30 caracteres alfanuméricos o _.');
+        }
+        showFieldError(username, usernameError, '');
+      };
+
+      const validatePassword = () => {
+        const value = String(password.value || '').trim();
+        password.value = value;
+        if (!value) return showFieldError(password, passwordError, 'La contraseña es obligatoria.');
+        if (value.length < 6 || value.length > 50) {
+          return showFieldError(password, passwordError, 'Debe tener entre 6 y 50 caracteres.');
+        }
+        showFieldError(password, passwordError, '');
+      };
+
+      username.addEventListener('blur', validateUsername);
+      password.addEventListener('blur', validatePassword);
+      username.addEventListener('input', validateUsername);
+      password.addEventListener('input', validatePassword);
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        validateUsername();
+        validatePassword();
+
+        if (!usernameError.classList.contains('hidden') || !passwordError.classList.contains('hidden')) return;
+
+        const u = sanitize(username.value);
+        const p = String(password.value || '').trim();
+        const ok = fallbackUsers.some(user => user.username === u && user.password === p);
+
+        if (!ok) {
+          loginError.textContent = 'Credenciales inválidas.';
+          loginError.classList.remove('hidden');
+          return;
+        }
+
+        loginError.classList.add('hidden');
+        sessionStorage.setItem('mc_user', u);
+        window.location.href = './views/home.html';
+      });
+    })();
+  </script>
+  <script src=".\assets\js\main.js"></script>
+  <script src=".\assets\js\login.js"></script>
+</body>
+</html>
