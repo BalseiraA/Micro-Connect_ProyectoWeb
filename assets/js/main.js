@@ -1,3 +1,4 @@
+/*main.js*/
 (() => {
   const App = {
     sanitizeText(value) {

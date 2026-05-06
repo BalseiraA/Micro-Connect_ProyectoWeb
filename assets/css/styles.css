@@ -165,3 +165,7 @@ button[type="submit"]:hover {
 .post-card img {
   border: 1px solid var(--border-main);
 }
+
+body.login-bg main {
+  background: transparent !important;
+}

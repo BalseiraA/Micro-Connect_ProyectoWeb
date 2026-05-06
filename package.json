@@ -1,0 +1,26 @@
+{
+  "name": "proyecto",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev:css": "tailwindcss -i ./src/input.css -o ./assets/css/tailwind.css --watch",
+    "build:css": "tailwindcss -i ./src/input.css -o ./assets/css/tailwind.css --minify"
+  },
+  "repository": { 
+    "type": "git",
+    "url": "git+https://github.com/BalseiraA/Micro-Connect_ProyectoWeb.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/BalseiraA/Micro-Connect_ProyectoWeb/issues"
+  },
+  "homepage": "https://github.com/BalseiraA/Micro-Connect_ProyectoWeb#readme",
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.2.4",
+    "tailwindcss": "^4.2.4"
+  }
+}
