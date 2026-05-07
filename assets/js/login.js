@@ -5,6 +5,10 @@
     { username: 'maria', password: 'react2026' }
   ];
 
+  const SESSION_USER_KEY = 'mc_user';
+  const SESSION_AUTH_KEY = 'mc_auth';
+  const SESSION_LOGIN_TIME_KEY = 'mc_login_at';
+
   function onReady(callback) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', callback);
@@ -19,6 +23,73 @@
       .trim();
   }
 
+  function normalizePath(path) {
+    return String(path || '').replace(/\\/g, '/');
+  }
+
+  function isInsideViewsFolder() {
+    return normalizePath(window.location.pathname).includes('/views/');
+  }
+
+  function getLoginPath() {
+    return isInsideViewsFolder() ? '../index.html' : './index.html';
+  }
+
+  function getHomePath() {
+    return isInsideViewsFolder() ? './home.html' : './views/home.html';
+  }
+
+  function isLoginPage() {
+    return !!document.getElementById('loginForm');
+  }
+
+  function isAuthenticated() {
+    return (
+      sessionStorage.getItem(SESSION_AUTH_KEY) === 'true' &&
+      !!sessionStorage.getItem(SESSION_USER_KEY)
+    );
+  }
+
+  function startSession(username) {
+    sessionStorage.setItem(SESSION_USER_KEY, username);
+    sessionStorage.setItem(SESSION_AUTH_KEY, 'true');
+    sessionStorage.setItem(SESSION_LOGIN_TIME_KEY, String(Date.now()));
+  }
+
+  function clearSession() {
+    sessionStorage.removeItem(SESSION_USER_KEY);
+    sessionStorage.removeItem(SESSION_AUTH_KEY);
+    sessionStorage.removeItem(SESSION_LOGIN_TIME_KEY);
+  }
+
+  function protectNavigation() {
+    const loginPage = isLoginPage();
+    const authenticated = isAuthenticated();
+
+    /*
+      Caso 1:
+      El usuario ya inició sesión y llegó al login usando Atrás.
+      Lo regresamos a home.html sin dejar el login en el historial.
+    */
+    if (loginPage && authenticated) {
+      window.location.replace(getHomePath());
+      return false;
+    }
+
+    /*
+      Caso 2:
+      El usuario intenta abrir home.html sin iniciar sesión.
+      Lo mandamos al login.
+    */
+    if (!loginPage && !authenticated) {
+      clearSession();
+      window.location.replace(getLoginPath());
+      return false;
+    }
+
+    return true;
+  }
+
   function showFieldError(input, errorEl, message = '') {
     if (!input || !errorEl) return false;
 
@@ -31,7 +102,7 @@
     return !message;
   }
 
-  onReady(() => {
+  function initLoginForm() {
     document.body.classList.add('theme-light');
 
     const form = document.getElementById('loginForm');
@@ -127,16 +198,44 @@
 
       if (!exists) {
         setLoginError('Credenciales inválidas.');
+        clearSession();
         return;
       }
 
       setLoginError('');
-      sessionStorage.setItem('mc_user', typedUsername);
+      startSession(typedUsername);
 
-      const formAction = form.getAttribute('action') || './views/home.html';
-      const redirectTo = formAction.replace(/\\/g, '/');
+      const formAction = form.getAttribute('action') || getHomePath();
+      const redirectTo = normalizePath(formAction);
 
-      window.location.href = redirectTo;
+      /*
+        replace evita que index.html quede como página anterior
+        después de iniciar sesión.
+      */
+      window.location.replace(redirectTo);
     });
+  }
+
+  onReady(() => {
+    const canContinue = protectNavigation();
+    if (!canContinue) return;
+
+    if (isLoginPage()) {
+      initLoginForm();
+    }
   });
+
+  /*
+    Este evento se dispara cuando el navegador restaura una página
+    desde caché usando Atrás o Adelante.
+  */
+  window.addEventListener('pageshow', () => {
+    protectNavigation();
+  });
+
+  window.MicroConnectAuth = {
+    isAuthenticated,
+    startSession,
+    clearSession
+  };
 })();

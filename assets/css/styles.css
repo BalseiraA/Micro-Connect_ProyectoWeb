@@ -125,8 +125,61 @@ textarea:focus {
 }
 
 /* Input de imagen */
+/* Input de imagen */
 input[type="file"] {
+  width: 100%;
   color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* Botón interno: "Seleccionar archivo" */
+input[type="file"]::file-selector-button {
+  margin-right: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background-color: var(--bg-soft);
+  color: var(--text-main);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease;
+}
+
+input[type="file"]::file-selector-button:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background-color: rgba(37, 99, 235, 0.08);
+  transform: translateY(-1px);
+}
+
+input[type="file"]::file-selector-button:active {
+  transform: translateY(0);
+}
+
+input[type="file"]:focus-visible {
+  outline: none;
+}
+
+input[type="file"]:focus-visible::file-selector-button {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+/* Compatibilidad extra con navegadores basados en WebKit */
+input[type="file"]::-webkit-file-upload-button {
+  margin-right: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background-color: var(--bg-soft);
+  color: var(--text-main);
+  font-weight: 600;
+  cursor: pointer;
 }
 
 /* Botones generales */

@@ -1,14 +1,17 @@
-<!--index.html-->
+<!-- index.html -->
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>Micro-Connect | Iniciar sesión</title>
+
   <link rel="stylesheet" href="./assets/css/tailwind.css" />
   <link rel="stylesheet" href="./assets/css/styles.css" />
+
   <style>
-    .login-bg {
+    body.login-bg {
       position: relative;
       min-height: 100vh;
       overflow: hidden;
@@ -17,7 +20,11 @@
         radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.28), transparent 34%),
         radial-gradient(circle at 80% 25%, rgba(124, 58, 237, 0.26), transparent 32%),
         radial-gradient(circle at 50% 85%, rgba(14, 165, 233, 0.24), transparent 38%),
-        linear-gradient(135deg, #eef6ff 0%, #f5f3ff 42%, #ecfeff 100%);
+        linear-gradient(135deg, #eef6ff 0%, #f5f3ff 42%, #ecfeff 100%) !important;
+    }
+
+    body.login-bg main {
+      background: transparent !important;
     }
 
     .liquid-bg {
@@ -26,7 +33,6 @@
       pointer-events: none;
       overflow: hidden;
       z-index: 0;
-      background: rgba(255, 0, 0, 0.2);
     }
 
     .liquid-bg::before,
@@ -91,48 +97,20 @@
       mix-blend-mode: multiply;
     }
 
-    .liquid-glass-card {
+    .login-card {
       position: relative;
       overflow: hidden;
-      background: rgba(255, 255, 255, 0.62);
-      border: 1px solid rgba(255, 255, 255, 0.78);
+      background: #ffffff !important;
+      border: 1px solid rgba(226, 232, 240, 0.95);
       box-shadow:
-        0 28px 80px rgba(15, 23, 42, 0.20),
+        0 28px 80px rgba(15, 23, 42, 0.24),
         inset 0 1px 0 rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(24px) saturate(1.45);
-      -webkit-backdrop-filter: blur(24px) saturate(1.45);
     }
 
-    .liquid-glass-card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(
-          135deg,
-          rgba(255, 255, 255, 0.75) 0%,
-          rgba(255, 255, 255, 0.22) 45%,
-          rgba(255, 255, 255, 0.08) 100%
-        );
-      pointer-events: none;
-    }
-
-    .liquid-glass-card::after {
-      content: "";
-      position: absolute;
-      width: 180px;
-      height: 180px;
-      right: -60px;
-      top: -60px;
-      border-radius: 9999px;
-      background: rgba(255, 255, 255, 0.42);
-      filter: blur(10px);
-      pointer-events: none;
-    }
-
-    .liquid-glass-card > * {
-      position: relative;
-      z-index: 1;
+    .login-card::before,
+    .login-card::after {
+      display: none;
+      content: none;
     }
 
     @keyframes liquidFloat {
@@ -168,6 +146,7 @@
     }
   </style>
 </head>
+
 <body class="min-h-screen login-bg text-slate-900">
   <div class="liquid-bg" aria-hidden="true">
     <span class="liquid-orb orb-one"></span>
@@ -175,32 +154,52 @@
   </div>
 
   <main class="relative z-10 min-h-screen grid place-items-center p-4">
-    <section class="liquid-glass-card w-full max-w-md rounded-2xl p-6 sm:p-8">
+    <section class="login-card w-full max-w-md rounded-2xl p-6 sm:p-8">
       <h1 class="text-3xl font-bold mb-2">Micro-Connect</h1>
       <p class="text-slate-600 mb-6">Inicia sesión para continuar.</p>
 
       <form id="loginForm" action="./views/home.html" method="get" novalidate class="space-y-4">
         <div>
           <label for="username" class="block text-sm font-medium mb-1">Usuario</label>
-          <input id="username" name="username" type="text" required minlength="3" maxlength="30" pattern="[a-zA-Z0-9_]{3,30}"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+          <input
+            id="username"
+            name="username"
+            type="text"
+            required
+            minlength="3"
+            maxlength="30"
+            pattern="[a-zA-Z0-9_]{3,30}"
+            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          />
           <p id="usernameError" class="text-sm text-red-600 mt-1 hidden"></p>
         </div>
 
         <div>
           <label for="password" class="block text-sm font-medium mb-1">Contraseña</label>
-          <input id="password" name="password" type="password" required minlength="6" maxlength="50"
-                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+          <input
+            id="password"
+            name="password"
+            type="password"
+            required
+            minlength="6"
+            maxlength="50"
+            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          />
           <p id="passwordError" class="text-sm text-red-600 mt-1 hidden"></p>
         </div>
 
-        <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition">
+        <button
+          type="submit"
+          class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition"
+        >
           Iniciar Sesión
         </button>
+
         <p id="loginError" class="text-sm text-red-600 hidden"></p>
       </form>
     </section>
   </main>
+
   <script src="./assets/js/main.js"></script>
   <script src="./assets/js/login.js"></script>
 </body>
