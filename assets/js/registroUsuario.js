@@ -84,7 +84,7 @@
         level: 'weak',
         width: '25%',
         color: '#dc2626',
-        text: 'Fortaleza: débil (◞ ‸ ◟ )'
+        text: 'Fortaleza: Débil'
       };
     }
 
@@ -94,7 +94,7 @@
         level: 'medium',
         width: '60%',
         color: '#f59e0b',
-        text: 'Fortaleza: media (˶˃⤙˂˶)'
+        text: 'Fortaleza: Media'
       };
     }
 
@@ -103,7 +103,7 @@
       level: 'strong',
       width: '100%',
       color: '#22c55e',
-      text: 'Fortaleza: fuerte ദ്ദി(ᵔᗜᵔ)'
+      text: 'Fortaleza: Fuerte'
     };
   }
 
