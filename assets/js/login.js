@@ -1,10 +1,5 @@
 /* login.js */
 (() => {
-  const fallbackUsers = [
-    { username: 'usuario', password: 'pass1234' },
-    { username: 'maria', password: 'react2026' }
-  ];
-
   const SESSION_USER_KEY = 'mc_user';
   const SESSION_AUTH_KEY = 'mc_auth';
   const SESSION_LOGIN_TIME_KEY = 'mc_login_at';
@@ -39,8 +34,23 @@
     return isInsideViewsFolder() ? './home.html' : './views/home.html';
   }
 
+  function getRegisterPath() {
+    return isInsideViewsFolder() ? './registroUsuario.html' : './views/registroUsuario.html';
+  }
+
   function isLoginPage() {
     return !!document.getElementById('loginForm');
+  }
+
+  function isRegisterPage() {
+    return normalizePath(window.location.pathname).endsWith('/registroUsuario.html') ||
+      !!document.getElementById('registerForm');
+  }
+
+  function getUserStore() {
+    return window.MicroConnectApp && window.MicroConnectApp.userStore
+      ? window.MicroConnectApp.userStore
+      : null;
   }
 
   function isAuthenticated() {
@@ -64,24 +74,15 @@
 
   function protectNavigation() {
     const loginPage = isLoginPage();
+    const registerPage = isRegisterPage();
     const authenticated = isAuthenticated();
 
-    /*
-      Caso 1:
-      El usuario ya inició sesión y llegó al login usando Atrás.
-      Lo regresamos a home.html sin dejar el login en el historial.
-    */
-    if (loginPage && authenticated) {
+    if ((loginPage || registerPage) && authenticated) {
       window.location.replace(getHomePath());
       return false;
     }
 
-    /*
-      Caso 2:
-      El usuario intenta abrir home.html sin iniciar sesión.
-      Lo mandamos al login.
-    */
-    if (!loginPage && !authenticated) {
+    if (!loginPage && !registerPage && !authenticated) {
       clearSession();
       window.location.replace(getLoginPath());
       return false;
@@ -100,6 +101,46 @@
     input.classList.toggle('input-valid', !message && input.value.trim().length > 0);
 
     return !message;
+  }
+
+  function initPasswordToggle(passwordInput) {
+    const togglePassword = document.getElementById('togglePassword');
+    if (!passwordInput || !togglePassword) return;
+
+    function updatePasswordVisibility(showPassword) {
+      passwordInput.type = showPassword ? 'text' : 'password';
+
+      togglePassword.textContent = showPassword ? 'Ocultar Contraseña' : 'Mostrar Contraseña';
+      togglePassword.setAttribute('aria-pressed', String(showPassword));
+      togglePassword.setAttribute(
+        'aria-label',
+        showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+      );
+    }
+
+    togglePassword.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+    });
+
+    togglePassword.addEventListener('click', () => {
+      const shouldShowPassword = passwordInput.type === 'password';
+
+      updatePasswordVisibility(shouldShowPassword);
+
+      passwordInput.focus();
+
+      const cursorPosition = passwordInput.value.length;
+      passwordInput.setSelectionRange(cursorPosition, cursorPosition);
+    });
+  }
+
+  function initRegisterButton() {
+    const goToRegister = document.getElementById('goToRegister');
+    if (!goToRegister) return;
+
+    goToRegister.addEventListener('click', () => {
+      window.location.replace(getRegisterPath());
+    });
   }
 
   function initLoginForm() {
@@ -122,6 +163,9 @@
       return;
     }
 
+    initPasswordToggle(password);
+    initRegisterButton();
+
     function setLoginError(message = '') {
       loginError.textContent = message;
       loginError.classList.toggle('hidden', !message);
@@ -135,12 +179,8 @@
         return showFieldError(username, usernameError, 'El usuario es obligatorio.');
       }
 
-      if (!/^[a-zA-Z0-9_]{3,30}$/.test(value)) {
-        return showFieldError(
-          username,
-          usernameError,
-          'Usa 3-30 caracteres alfanuméricos o _.'
-        );
+      if (value.length > 20) {
+        return showFieldError(username, usernameError, 'El usuario no puede tener más de 20 caracteres.');
       }
 
       return showFieldError(username, usernameError, '');
@@ -154,8 +194,8 @@
         return showFieldError(password, passwordError, 'La contraseña es obligatoria.');
       }
 
-      if (value.length < 6 || value.length > 50) {
-        return showFieldError(password, passwordError, 'Debe tener entre 6 y 50 caracteres.');
+      if (value.length > 255) {
+        return showFieldError(password, passwordError, 'La contraseña no puede tener más de 255 caracteres.');
       }
 
       return showFieldError(password, passwordError, '');
@@ -190,11 +230,17 @@
       const typedUsername = sanitize(username.value);
       const typedPassword = String(password.value || '').trim();
 
-      const exists = fallbackUsers.some(
-        (user) =>
-          user.username === typedUsername &&
-          user.password === typedPassword
-      );
+      const store = getUserStore();
+
+      if (!store) {
+        setLoginError('No se pudo acceder al almacenamiento de usuarios.');
+        clearSession();
+        return;
+      }
+
+      const user = store.findUserByUsername(typedUsername);
+
+      const exists = !!user && user.password === typedPassword;
 
       if (!exists) {
         setLoginError('Credenciales inválidas.');
@@ -203,15 +249,11 @@
       }
 
       setLoginError('');
-      startSession(typedUsername);
+      startSession(user.username);
 
       const formAction = form.getAttribute('action') || getHomePath();
       const redirectTo = normalizePath(formAction);
 
-      /*
-        replace evita que index.html quede como página anterior
-        después de iniciar sesión.
-      */
       window.location.replace(redirectTo);
     });
   }
@@ -225,10 +267,6 @@
     }
   });
 
-  /*
-    Este evento se dispara cuando el navegador restaura una página
-    desde caché usando Atrás o Adelante.
-  */
   window.addEventListener('pageshow', () => {
     protectNavigation();
   });

@@ -113,6 +113,77 @@
       content: none;
     }
 
+    .password-field {
+      position: relative;
+    }
+
+    .password-field input {
+      padding-right: 160px;
+    }
+
+    .password-toggle-btn {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #2563eb;
+      background: transparent;
+      transition:
+        background-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.15s ease;
+    }
+
+    .password-toggle-btn:hover {
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .password-toggle-btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+    }
+
+    .login-register-action {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      margin-top: 14px;
+    }
+
+    .register-link-btn {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      border-radius: 10px;
+      padding: 8px 12px;
+      color: #2563eb;
+      font-size: 0.95rem;
+      font-weight: 700;
+      background: transparent;
+      transition:
+        background-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.15s ease;
+    }
+
+    .register-link-btn:hover {
+      color: #1d4ed8;
+      background: #eff6ff;
+      text-decoration: underline;
+      transform: translateY(-1px);
+    }
+
+    .register-link-btn:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+    }
+
     @keyframes liquidFloat {
       0% {
         transform: translate3d(0, 0, 0) scale(1);
@@ -143,6 +214,17 @@
     .input-valid {
       border-color: #16a34a;
       box-shadow: 0 0 0 2px rgb(22 163 74 / 0.2);
+    }
+
+    @media (max-width: 420px) {
+      .password-field input {
+        padding-right: 128px;
+      }
+
+      .password-toggle-btn {
+        font-size: 0.68rem;
+        padding-inline: 7px;
+      }
     }
   </style>
 </head>
@@ -176,15 +258,29 @@
 
         <div>
           <label for="password" class="block text-sm font-medium mb-1">Contraseña</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
-            minlength="6"
-            maxlength="50"
-            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          />
+
+          <div class="password-field">
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              minlength="6"
+              maxlength="50"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+
+            <button
+              id="togglePassword"
+              type="button"
+              class="password-toggle-btn"
+              aria-label="Mostrar contraseña"
+              aria-pressed="false"
+            >
+              Mostrar Contraseña
+            </button>
+          </div>
+
           <p id="passwordError" class="text-sm text-red-600 mt-1 hidden"></p>
         </div>
 
@@ -194,6 +290,16 @@
         >
           Iniciar Sesión
         </button>
+
+        <div class="login-register-action">
+          <button
+            id="goToRegister"
+            type="button"
+            class="register-link-btn"
+          >
+            Crear cuenta nueva
+          </button>
+        </div>
 
         <p id="loginError" class="text-sm text-red-600 hidden"></p>
       </form>
