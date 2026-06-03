@@ -109,9 +109,36 @@
           <summary class="cursor-pointer text-sm font-semibold text-blue-500 hover:underline list-none">🔒 Cambiar contraseña</summary>
 
           <div class="mt-3 space-y-3">
-            ${editField('editCurrentPass', 'Contraseña actual', '', 'password')}
-            ${editField('editNewPass', 'Nueva contraseña', '', 'password')}
-            ${editField('editNewPassConfirm', 'Confirmar nueva contraseña', '', 'password')}
+            <div>
+              <label for="editCurrentPass" class="block text-sm font-semibold mb-1">Contraseña actual</label>
+
+              <input id="editCurrentPass" type="password"
+                class="w-full border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
+
+              <p id="currentPassFeedback" class="hidden text-xs mt-1"></p>
+            </div>
+
+            <div>
+              <label for="editNewPass" class="block text-sm font-semibold mb-1">Nueva contraseña</label>
+
+              <input id="editNewPass" type="password"
+                class="w-full border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
+
+              <div class="mt-2 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div id="newPassStrengthBar" class="h-full w-0 rounded-full transition-all duration-300"></div>
+              </div>
+
+              <p id="newPassFeedback" class="hidden text-xs mt-1"></p>
+            </div>
+
+            <div>
+              <label for="editNewPassConfirm" class="block text-sm font-semibold mb-1">Confirmar nueva contraseña</label>
+
+              <input id="editNewPassConfirm" type="password"
+                class="w-full border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
+
+              <p id="confirmPassFeedback" class="hidden text-xs mt-1"></p>
+            </div>
           </div>
         </details>
 
@@ -150,6 +177,19 @@
       reader.readAsDataURL(file);
     });
 
+    modal.querySelector('#editCurrentPass')?.addEventListener('input', () => {
+      validateCurrentPassword();
+    });
+
+    modal.querySelector('#editNewPass')?.addEventListener('input', () => {
+      validateNewPassword();
+      validateConfirmPassword();
+    });
+
+    modal.querySelector('#editNewPassConfirm')?.addEventListener('input', () => {
+      validateConfirmPassword();
+    });
+
     function showMsg(msg, type) {
       const e = modal.querySelector('#editError');
       const s = modal.querySelector('#editSuccess');
@@ -163,6 +203,172 @@
         s.classList.remove('hidden');
         e.classList.add('hidden');
       }
+    }
+
+    function setInputState(input, feedback, isValid, message) {
+      if (!input || !feedback) return;
+
+      input.classList.remove(
+        'border-red-400',
+        'focus:ring-red-400',
+        'border-green-400',
+        'focus:ring-green-400'
+      );
+
+      feedback.classList.remove(
+        'hidden',
+        'text-red-500',
+        'text-green-600',
+        'text-slate-400'
+      );
+
+      if (!message) {
+        feedback.textContent = '';
+        feedback.classList.add('hidden');
+        return;
+      }
+
+      feedback.textContent = message;
+
+      if (isValid) {
+        input.classList.add('border-green-400', 'focus:ring-green-400');
+        feedback.classList.add('text-green-600');
+      } else {
+        input.classList.add('border-red-400', 'focus:ring-red-400');
+        feedback.classList.add('text-red-500');
+      }
+    }
+
+    function validateCurrentPassword() {
+      const input = modal.querySelector('#editCurrentPass');
+      const feedback = modal.querySelector('#currentPassFeedback');
+
+      if (!input || !feedback) return false;
+
+      const value = input.value;
+
+      const store = window.MicroConnectApp.userStore;
+      const users = store.getUsers();
+      const storedUser = users.find(u => u.username === user.username);
+
+      if (!value) {
+        setInputState(input, feedback, false, '');
+        return false;
+      }
+
+      if (!storedUser) {
+        setInputState(input, feedback, false, 'No se encontró el usuario registrado.');
+        return false;
+      }
+
+      if (value === storedUser.password) {
+        setInputState(input, feedback, true, 'La contraseña actual es correcta.');
+        return true;
+      }
+
+      setInputState(input, feedback, false, 'La contraseña actual no coincide.');
+      return false;
+    }
+
+    function getPasswordStrength(password) {
+      let score = 0;
+
+      if (password.length >= 6) score++;
+      if (password.length >= 8) score++;
+      if (/[a-z]/.test(password)) score++;
+      if (/[A-Z]/.test(password)) score++;
+      if (/[0-9]/.test(password)) score++;
+      if (/[^A-Za-z0-9]/.test(password)) score++;
+
+      if (!password) {
+        return {
+          level: 'empty',
+          label: '',
+          percent: '0%',
+          color: 'transparent',
+          isValid: false
+        };
+      }
+
+      if (score <= 2) {
+        return {
+          level: 'weak',
+          label: 'Contraseña débil. Usa mínimo 6 caracteres, mayúsculas, números o símbolos.',
+          percent: '33%',
+          color: '#ef4444',
+          isValid: false
+        };
+      }
+
+      if (score <= 4) {
+        return {
+          level: 'medium',
+          label: 'Contraseña media.',
+          percent: '66%',
+          color: '#f59e0b',
+          isValid: true
+        };
+      }
+
+      return {
+        level: 'strong',
+        label: 'Contraseña fuerte.',
+        percent: '100%',
+        color: '#22c55e',
+        isValid: true
+      };
+    }
+
+    function validateNewPassword() {
+      const input = modal.querySelector('#editNewPass');
+      const feedback = modal.querySelector('#newPassFeedback');
+      const bar = modal.querySelector('#newPassStrengthBar');
+
+      if (!input || !feedback || !bar) return false;
+
+      const value = input.value;
+      const strength = getPasswordStrength(value);
+
+      bar.style.width = strength.percent;
+      bar.style.backgroundColor = strength.color;
+
+      if (!value) {
+        setInputState(input, feedback, false, '');
+        return false;
+      }
+
+      setInputState(input, feedback, strength.isValid, strength.label);
+
+      return strength.isValid;
+    }
+
+    function validateConfirmPassword() {
+      const newPassInput = modal.querySelector('#editNewPass');
+      const confirmInput = modal.querySelector('#editNewPassConfirm');
+      const feedback = modal.querySelector('#confirmPassFeedback');
+
+      if (!newPassInput || !confirmInput || !feedback) return false;
+
+      const newPass = newPassInput.value;
+      const confirmPass = confirmInput.value;
+
+      if (!confirmPass) {
+        setInputState(confirmInput, feedback, false, '');
+        return false;
+      }
+
+      if (!newPass) {
+        setInputState(confirmInput, feedback, false, 'Primero escribe una nueva contraseña.');
+        return false;
+      }
+
+      if (newPass === confirmPass) {
+        setInputState(confirmInput, feedback, true, 'Las contraseñas coinciden.');
+        return true;
+      }
+
+      setInputState(confirmInput, feedback, false, 'Las contraseñas no coinciden.');
+      return false;
     }
 
     function closeModal() {
@@ -204,17 +410,21 @@
       const nc = modal.querySelector('#editNewPassConfirm').value;
 
       if (cp || np || nc) {
-        if (cp !== users[idx].password) {
+        const isCurrentPasswordValid = validateCurrentPassword();
+        const isNewPasswordValid = validateNewPassword();
+        const isConfirmPasswordValid = validateConfirmPassword();
+
+        if (!isCurrentPasswordValid) {
           showMsg('La contraseña actual no es correcta.', 'error');
           return;
         }
 
-        if (np.length < 6) {
-          showMsg('La nueva contraseña debe tener al menos 6 caracteres.', 'error');
+        if (!isNewPasswordValid) {
+          showMsg('La nueva contraseña debe tener fortaleza media o fuerte.', 'error');
           return;
         }
 
-        if (np !== nc) {
+        if (!isConfirmPasswordValid) {
           showMsg('Las contraseñas nuevas no coinciden.', 'error');
           return;
         }
