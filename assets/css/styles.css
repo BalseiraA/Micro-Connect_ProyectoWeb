@@ -259,8 +259,8 @@ body.login-bg main {
 }
 
 .sidebar-close-bar {
-  display: none;
-  justify-content: space-between;
+  display: flex;
+  justify-content: flex-end;
   align-items: center;
   margin-bottom: 1.25rem;
 }
@@ -278,6 +278,13 @@ body.login-bg main {
 .sidebar-close-bar button:hover {
   color: var(--text-main);
   background-color: var(--bg-soft);
+}
+
+/* En pantallas grandes, el menú siempre visible y sin botón de hamburguesa */
+@media (min-width: 1024px) {
+  .sidebar-close-bar {
+    display: none !important;
+  }
 }
 
 @media (max-width: 1023px) {
@@ -309,6 +316,10 @@ body.login-bg main {
   .sidebar-overlay.is-open {
     display: block;
     opacity: 1;
+  }
+
+  body.sidebar-menu-open .hamburger-btn {
+    display: none !important;
   }
 
   main {

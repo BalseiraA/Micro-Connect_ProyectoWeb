@@ -54,7 +54,7 @@
 
           <button id="editProfileBtn"
             class="w-full bg-gradient-to-r from-blue-500 to-violet-500 hover:opacity-90 text-white font-semibold py-2 px-6 rounded-xl transition">
-            ✏️ Editar perfil
+                Editar perfil
           </button>
         </div>
 

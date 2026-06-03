@@ -305,12 +305,12 @@
           <div class="flex items-center justify-between flex-wrap gap-2">
             <div class="flex gap-2">
               <label class="cursor-pointer flex items-center gap-1 text-sm text-slate-400 hover:text-blue-400 transition">
-                🖼 Imagen
+                Imagen
                 <input type="file" id="postImageInput" accept="image/png,image/jpeg,image/gif,image/webp" class="hidden" />
               </label>
 
               <label class="cursor-pointer flex items-center gap-1 text-sm text-slate-400 hover:text-blue-400 transition ml-4">
-                🎬 Video
+                Video
                 <input type="file" id="postVideoInput" accept="video/mp4,video/webm,video/ogg" class="hidden" />
               </label>
             </div>
@@ -517,6 +517,70 @@
 
   window.MicroConnectHome = { renderTab };
 
+  // ─── Sidebar móvil / menú hamburguesa ──────────────────────────────────────
+
+  function initMobileSidebar() {
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const sidebarClose = document.getElementById('sidebarClose');
+    const sidebarBack = document.getElementById('sidebarBack');
+    const tabButtons = document.querySelectorAll('#menuTabs .tab-btn');
+
+    if (!menuToggle || !sidebar || !overlay || !sidebarClose) return;
+
+    function openSidebar() {
+      sidebar.classList.add('is-open');
+      overlay.classList.add('is-open');
+
+      // Oculta el botón hamburguesa mientras el menú está abierto
+      menuToggle.style.display = 'none';
+
+      menuToggle.setAttribute('aria-expanded', 'true');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove('is-open');
+      overlay.classList.remove('is-open');
+
+      // Vuelve a mostrar el botón hamburguesa al cerrar el menú
+      menuToggle.style.display = '';
+
+      menuToggle.setAttribute('aria-expanded', 'false');
+      document.body.style.overflow = '';
+    }
+
+    menuToggle.addEventListener('click', openSidebar);
+    sidebarClose.addEventListener('click', closeSidebar);
+
+    if (sidebarBack) {
+      sidebarBack.addEventListener('click', closeSidebar);
+    }
+
+    overlay.addEventListener('click', closeSidebar);
+
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (window.innerWidth < 1024) {
+          closeSidebar();
+        }
+      });
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeSidebar();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth >= 1024) {
+        closeSidebar();
+      }
+    });
+  }
+  
   // ─── Init ──────────────────────────────────────────────────────────────────
 
   function init() {
@@ -524,6 +588,7 @@
     if (!user) return;
 
     renderSidebarUser(user);
+    initMobileSidebar();
 
     const tabs = document.querySelectorAll('.tab-btn');
 
