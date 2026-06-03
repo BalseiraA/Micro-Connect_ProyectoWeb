@@ -184,4 +184,39 @@
   window.MicroConnectApp = App;
 
   document.addEventListener('DOMContentLoaded', () => App.bootstrap());
+
+  // ── Drawer móvil ──
+  document.addEventListener('DOMContentLoaded', () => {
+    const sidebar      = document.getElementById('sidebar');
+    const overlay      = document.getElementById('sidebarOverlay');
+    const menuToggle   = document.getElementById('menuToggle');
+    const sidebarClose = document.getElementById('sidebarClose');
+    const sidebarBack  = document.getElementById('sidebarBack');
+    const tabButtons   = document.querySelectorAll('.tab-btn');
+
+    if (!sidebar || !overlay || !menuToggle) return;
+
+    function openSidebar() {
+      sidebar.classList.add('is-open');
+      overlay.classList.add('is-open');
+      menuToggle.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove('is-open');
+      overlay.classList.remove('is-open');
+      menuToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    menuToggle.addEventListener('click', openSidebar);
+    overlay.addEventListener('click', closeSidebar);
+    if (sidebarClose) sidebarClose.addEventListener('click', closeSidebar);
+    if (sidebarBack)  sidebarBack.addEventListener('click', closeSidebar);
+
+    tabButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (window.innerWidth < 1024) closeSidebar();
+      });
+    });
+  });
 })();

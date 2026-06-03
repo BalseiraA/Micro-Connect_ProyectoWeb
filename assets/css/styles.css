@@ -223,3 +223,95 @@ button[type="submit"]:hover {
 body.login-bg main {
   background: transparent !important;
 }
+
+/* =====================
+   DRAWER / SIDEBAR MÓVIL
+   ===================== */
+
+.hamburger-btn {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 200;
+  font-size: 1.5rem;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-main);
+  border-radius: 10px;
+  padding: 6px 12px;
+  color: var(--text-main);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transition: background-color 0.2s ease;
+}
+
+.hamburger-btn:hover {
+  background-color: var(--bg-soft);
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  z-index: 150;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar-close-bar {
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.sidebar-close-bar button {
+  font-size: 1.2rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.sidebar-close-bar button:hover {
+  color: var(--text-main);
+  background-color: var(--bg-soft);
+}
+
+@media (max-width: 1023px) {
+
+  .hamburger-btn {
+    display: block;
+  }
+
+  .sidebar-close-bar {
+    display: flex;
+  }
+
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    width: 280px;
+    z-index: 160;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    overflow-y: auto;
+  }
+
+  #sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay.is-open {
+    display: block;
+    opacity: 1;
+  }
+
+  main {
+    padding-top: 4rem !important;
+  }
+}
