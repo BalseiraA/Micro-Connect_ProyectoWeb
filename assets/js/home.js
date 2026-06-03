@@ -88,15 +88,48 @@
     const post = posts.find(p => p.id === postId);
     if (!post) return;
 
+    if (!Array.isArray(post.comments)) post.comments = [];
+
     post.comments.push({
       id: createId(),
       author,
       text: sanitize(text),
+      replies: [],
       createdAt: new Date().toISOString()
     });
 
     savePosts(posts);
     return post;
+  }
+
+  function addReply(postId, commentId, author, text) {
+    const posts = getPosts();
+    const post = posts.find(p => p.id === postId);
+    if (!post || !Array.isArray(post.comments)) return;
+
+    const comment = post.comments.find(c => c.id === commentId);
+    if (!comment) return;
+
+    if (!Array.isArray(comment.replies)) comment.replies = [];
+
+    const reply = {
+      id: createId(),
+      author,
+      text: sanitize(text),
+      createdAt: new Date().toISOString()
+    };
+
+    comment.replies.push(reply);
+
+    savePosts(posts);
+
+    return { post, comment, reply };
+  }
+
+  function countPostComments(post) {
+    return (post.comments || []).reduce((total, comment) => {
+      return total + 1 + (comment.replies || []).length;
+    }, 0);
   }
 
   function deletePost(postId, username) {
@@ -125,6 +158,57 @@
 
   // ─── Feed de publicaciones ─────────────────────────────────────────────────
 
+  function replyHTML(reply, store) {
+    const rUser = store?.findUserByUsername(reply.author) || { username: reply.author };
+
+    return `
+      <div class="reply-item flex gap-2 items-start py-1">
+        ${avatarHTML(rUser, 'w-6 h-6 text-xs')}
+        <div class="bg-slate-50 dark:bg-slate-800/70 border border-slate-100 dark:border-slate-700 rounded-xl px-3 py-2 flex-1">
+          <span class="font-semibold text-xs">@${sanitize(reply.author)}</span>
+          <p class="text-sm mt-0.5">${sanitize(reply.text)}</p>
+        </div>
+      </div>`;
+  }
+
+  function commentHTML(comment, store, currentUser) {
+    const cUser = store?.findUserByUsername(comment.author) || { username: comment.author };
+    const repliesHTML = (comment.replies || []).map(reply => replyHTML(reply, store)).join('');
+
+    return `
+      <div class="comment-item py-2" data-comment-id="${comment.id}">
+        <div class="flex gap-2 items-start">
+          ${avatarHTML(cUser, 'w-7 h-7 text-xs')}
+
+          <div class="flex-1">
+            <div class="bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2">
+              <span class="font-semibold text-xs">@${sanitize(comment.author)}</span>
+              <p class="text-sm mt-0.5">${sanitize(comment.text)}</p>
+            </div>
+
+            <button class="reply-comment-btn text-xs text-slate-400 hover:text-blue-500 transition mt-1">
+              Responder
+            </button>
+
+            <div class="comment-replies ml-5 mt-1 space-y-1">
+              ${repliesHTML}
+            </div>
+
+            <div class="reply-form hidden mt-2 ml-5 flex gap-2 items-center">
+              ${avatarHTML(currentUser, 'w-7 h-7 text-xs')}
+
+              <input type="text" placeholder="Responder comentario…" maxlength="300"
+                class="reply-input flex-1 bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+
+              <button class="send-reply-btn bg-blue-500 hover:bg-blue-600 text-white rounded-xl px-3 py-2 text-sm transition">
+                ↩
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
   function postCardHTML(post, currentUser) {
     const store = window.MicroConnectApp?.userStore;
     const author = store?.findUserByUsername(post.author) || { username: post.author };
@@ -137,18 +221,7 @@
         : `<img src="${post.mediaDataUrl}" class="w-full rounded-xl max-h-72 mt-3 object-cover" />`
       : '';
 
-    const commentsHTML = post.comments.map(c => {
-      const cUser = store?.findUserByUsername(c.author) || { username: c.author };
-
-      return `
-        <div class="flex gap-2 items-start py-2">
-          ${avatarHTML(cUser, 'w-7 h-7 text-xs')}
-          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 flex-1">
-            <span class="font-semibold text-xs">@${sanitize(c.author)}</span>
-            <p class="text-sm mt-0.5">${sanitize(c.text)}</p>
-          </div>
-        </div>`;
-    }).join('');
+    const commentsHTML = (post.comments || []).map(c => commentHTML(c, store, currentUser)).join('');
 
     return `
       <article class="post-card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-3" data-post-id="${post.id}">
@@ -174,7 +247,7 @@
           </button>
 
           <button class="comment-toggle-btn flex items-center gap-1.5 text-sm text-slate-400 hover:text-blue-400 transition">
-            💬 <span>${post.comments.length}</span>
+            💬 <span>${countPostComments(post)}</span>
           </button>
         </div>
 
@@ -196,6 +269,58 @@
   function bindPostCard(card, currentUser) {
     const postId = card.dataset.postId;
 
+    function updateCommentCounter(post) {
+      const countSpan = card.querySelector('.comment-toggle-btn span');
+      if (countSpan && post) countSpan.textContent = countPostComments(post);
+    }
+
+    function bindCommentReplies(commentItem) {
+      const commentId = commentItem.dataset.commentId;
+      const replyBtn = commentItem.querySelector('.reply-comment-btn');
+      const replyForm = commentItem.querySelector('.reply-form');
+      const replyInput = commentItem.querySelector('.reply-input');
+      const sendReplyBtn = commentItem.querySelector('.send-reply-btn');
+      const repliesList = commentItem.querySelector('.comment-replies');
+
+      replyBtn?.addEventListener('click', () => {
+        replyForm?.classList.toggle('hidden');
+
+        if (!replyForm?.classList.contains('hidden')) {
+          replyInput?.focus();
+        }
+      });
+
+      function sendReply() {
+        const text = replyInput?.value.trim();
+        if (!text) return;
+
+        const result = addReply(postId, commentId, currentUser.username, text);
+        if (!result) return;
+
+        const store = window.MicroConnectApp?.userStore;
+
+        const div = document.createElement('div');
+        div.innerHTML = replyHTML(result.reply, store);
+
+        repliesList?.appendChild(div.firstElementChild);
+
+        replyInput.value = '';
+        replyForm?.classList.add('hidden');
+
+        updateCommentCounter(result.post);
+      }
+
+      sendReplyBtn?.addEventListener('click', sendReply);
+
+      replyInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendReply();
+      });
+    }
+
+    card.querySelectorAll('.comment-item').forEach(commentItem => {
+      bindCommentReplies(commentItem);
+    });
+
     card.querySelector('.like-btn')?.addEventListener('click', () => {
       const post = toggleLike(postId, currentUser.username);
       if (!post) return;
@@ -216,26 +341,22 @@
       const text = input?.value.trim();
       if (!text) return;
 
-      addComment(postId, currentUser.username, text);
+      const post = addComment(postId, currentUser.username, text);
+      if (!post) return;
 
       const store = window.MicroConnectApp?.userStore;
-      const cUser = store?.findUserByUsername(currentUser.username) || currentUser;
+      const comment = post.comments[post.comments.length - 1];
       const list = card.querySelector('.comments-list');
 
       const div = document.createElement('div');
-      div.innerHTML = `
-        <div class="flex gap-2 items-start py-2">
-          ${avatarHTML(cUser, 'w-7 h-7 text-xs')}
-          <div class="bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 flex-1">
-            <span class="font-semibold text-xs">@${sanitize(currentUser.username)}</span>
-            <p class="text-sm mt-0.5">${sanitize(text)}</p>
-          </div>
-        </div>`;
+      div.innerHTML = commentHTML(comment, store, currentUser);
 
-      list?.appendChild(div.firstElementChild);
+      const commentItem = div.firstElementChild;
 
-      const countSpan = card.querySelector('.comment-toggle-btn span');
-      if (countSpan) countSpan.textContent = parseInt(countSpan.textContent || '0') + 1;
+      list?.appendChild(commentItem);
+      bindCommentReplies(commentItem);
+
+      updateCommentCounter(post);
 
       input.value = '';
     });
@@ -276,7 +397,9 @@
     addPost,
     toggleLike,
     addComment,
+    addReply,
     deletePost,
+    countPostComments,
     avatarHTML,
     renderSidebarUser,
     postCardHTML,

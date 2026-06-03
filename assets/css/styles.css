@@ -326,3 +326,189 @@ body.login-bg main {
     padding-top: 4rem !important;
   }
 }
+
+/* =====================
+   COMENTARIOS Y RESPUESTAS
+   ===================== */
+
+.comments-section {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.comments-list {
+  width: 100%;
+  max-width: 100%;
+}
+
+.comment-item {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.comment-item > .flex {
+  width: 100%;
+  max-width: 100%;
+  align-items: flex-start;
+}
+
+.comment-item .flex-1 {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Comentario principal */
+.comment-item > .flex > .flex-1 > .bg-slate-100,
+.comment-item > .flex > .flex-1 > .dark\:bg-slate-800 {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 1rem;
+}
+
+/* Texto de comentarios y respuestas */
+.comment-item p,
+.reply-item p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Botón responder */
+.reply-comment-btn {
+  display: inline-block;
+  margin-left: 0.25rem;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+}
+
+/* Contenedor de respuestas */
+.comment-replies {
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0 !important;
+  margin-top: 0.5rem;
+  padding-left: 1.25rem;
+  border-left: 2px solid rgb(226 232 240);
+  box-sizing: border-box;
+}
+
+.dark .comment-replies {
+  border-left-color: rgb(51 65 85);
+}
+
+/* Respuesta individual */
+.reply-item {
+  width: 100%;
+  max-width: 100%;
+  display: flex !important;
+  align-items: flex-start;
+  gap: 0.5rem;
+  box-sizing: border-box;
+}
+
+/* Avatar de respuesta: evita que la imagen se haga gigante */
+.reply-item > img,
+.reply-item > .rounded-full {
+  width: 1.5rem !important;
+  height: 1.5rem !important;
+  min-width: 1.5rem !important;
+  max-width: 1.5rem !important;
+  min-height: 1.5rem !important;
+  max-height: 1.5rem !important;
+  border-radius: 9999px !important;
+  object-fit: cover !important;
+  flex: 0 0 1.5rem !important;
+}
+
+/* Caja de respuesta: igual al comentario, pero más pequeña */
+.reply-item > div:last-child {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1;
+  background: rgb(241 245 249);
+  border: none;
+  border-radius: 0.875rem;
+  padding: 0.55rem 0.75rem;
+  box-sizing: border-box;
+}
+
+.dark .reply-item > div:last-child {
+  background: rgb(30 41 59);
+}
+
+/* Texto de la respuesta más pequeño */
+.reply-item > div:last-child span {
+  font-size: 0.72rem;
+}
+
+.reply-item > div:last-child p {
+  font-size: 0.82rem;
+  line-height: 1.25rem;
+}
+
+/* Formulario para responder */
+.reply-form {
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0 !important;
+  margin-top: 0.5rem;
+  padding-left: 1.25rem;
+  box-sizing: border-box;
+}
+
+/* Avatar del formulario de respuesta */
+.reply-form > img,
+.reply-form > .rounded-full {
+  width: 1.5rem !important;
+  height: 1.5rem !important;
+  min-width: 1.5rem !important;
+  max-width: 1.5rem !important;
+  min-height: 1.5rem !important;
+  max-height: 1.5rem !important;
+  border-radius: 9999px !important;
+  object-fit: cover !important;
+  flex: 0 0 1.5rem !important;
+}
+
+.reply-form .reply-input {
+  min-width: 0;
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+/* Input de comentario principal */
+.comment-input {
+  min-width: 0;
+}
+
+/* Botones de envío */
+.send-reply-btn,
+.send-comment-btn {
+  flex: 0 0 auto;
+}
+
+/* Ajuste móvil */
+@media (max-width: 640px) {
+  .comment-replies {
+    padding-left: 0.75rem;
+  }
+
+  .reply-form {
+    padding-left: 0.75rem;
+  }
+
+  .reply-item {
+    gap: 0.4rem;
+  }
+
+  .reply-item > div:last-child {
+    padding: 0.5rem 0.65rem;
+  }
+
+  .reply-form .send-reply-btn,
+  .send-comment-btn {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
