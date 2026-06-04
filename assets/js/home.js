@@ -54,8 +54,10 @@
 
   function addPost(author, text, mediaDataUrl, mediaType) {
     const posts = getPosts();
+    const provisionalId = createId(); // Guardamos el ID temporal de texto
+
     const post = {
-      id: createId(),
+      id: provisionalId, 
       author,
       text: sanitize(text),
       mediaDataUrl: mediaDataUrl || '',
@@ -67,44 +69,119 @@
 
     posts.unshift(post);
     savePosts(posts);
+
+    // ─── Sincronización Backend con tu MySQL ─────────────────────────────────
+    const formData = new FormData();
+    formData.append('text', text);
+
+    fetch('guardarPost.php', {
+      method: 'POST',
+      body: formData
+    })
+    .then(res => res.text())
+    .then(idReal => {
+      if (idReal !== "error") {
+        const idNumerico = parseInt(idReal, 10);
+        post.id = idNumerico;
+        
+        // 1. Actualizamos el LocalStorage sincronizando el string por el INT de MySQL
+        const postsActualizados = getPosts();
+        const postEncontrado = postsActualizados.find(p => p.createdAt === post.createdAt);
+        if (postEncontrado) {
+          postEncontrado.id = idNumerico;
+          savePosts(postsActualizados);
+        }
+        
+        // 2. 🔥 EL TRUCO MÁGICO: Buscamos la tarjeta en pantalla que tiene el ID de texto
+        // y le inyectamos dinámicamente el atributo numérico real en caliente
+        const tarjetaPost = document.querySelector(`[data-post-id="${provisionalId}"]`);
+        if (tarjetaPost) {
+          tarjetaPost.dataset.postId = idNumerico;
+          console.log('🔄 ID de tarjeta actualizado en caliente a:', idNumerico);
+        }
+      }
+    })
+    .catch(err => console.error('Error al sincronizar publicación con PHP:', err));
+
     return post;
   }
 
   function toggleLike(postId, username) {
     const posts = getPosts();
-    const post = posts.find(p => p.id === postId);
+    const post = posts.find(p => String(p.id) === String(postId));
     if (!post) return;
 
+    // Modificación local instantánea para mantener la UI rápida
     const idx = post.likes.indexOf(username);
     if (idx === -1) post.likes.push(username);
     else post.likes.splice(idx, 1);
 
     savePosts(posts);
+
+    // ─── Sincronización de Likes con tu MySQL ────────────────────────────────
+    const formData = new FormData();
+    formData.append('postId', postId);
+
+    fetch('guardarLike.php', {
+      method: 'POST',
+      body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'success') {
+        console.log(`❤️ Like sincronizado en MySQL. Acción: ${data.action}`);
+      } else {
+        console.error('Error al procesar el Like en el servidor:', data.message);
+      }
+    })
+    .catch(err => console.error('Error de red al registrar Like:', err));
+
     return post;
   }
 
   function addComment(postId, author, text) {
     const posts = getPosts();
-    const post = posts.find(p => p.id === postId);
+    const post = posts.find(p => String(p.id) === String(postId));
     if (!post) return;
 
     if (!Array.isArray(post.comments)) post.comments = [];
 
-    post.comments.push({
+    const nuevoComentario = {
       id: createId(),
       author,
       text: sanitize(text),
       replies: [],
       createdAt: new Date().toISOString()
-    });
+    };
 
+    post.comments.push(nuevoComentario);
     savePosts(posts);
+
+    // ─── Sincronización de Comentarios con tu MySQL ──────────────────────────
+    const formData = new FormData();
+    formData.append('postId', postId); // Viaja como el INT real asignado
+    formData.append('text', text);
+
+    fetch('guardarComentario.php', {
+      method: 'POST',
+      body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'success') {
+        console.log('Comentario sincronizado con MySQL perfectamente.');
+      } else {
+        console.error('Error del servidor al guardar comentario:', data.message);
+      }
+    })
+    .catch(err => console.error('Error de red al registrar comentario:', err));
+
     return post;
   }
 
   function addReply(postId, commentId, author, text) {
     const posts = getPosts();
-    const post = posts.find(p => p.id === postId);
+    const post = posts.find(p => String(p.id) === String(postId));
     if (!post || !Array.isArray(post.comments)) return;
 
     const comment = post.comments.find(c => c.id === commentId);
@@ -133,7 +210,7 @@
   }
 
   function deletePost(postId, username) {
-    const posts = getPosts().filter(p => !(p.id === postId && p.author === username));
+    const posts = getPosts().filter(p => !(String(p.id) === String(postId) && p.author === username));
     savePosts(posts);
   }
 
@@ -212,7 +289,7 @@
   function postCardHTML(post, currentUser) {
     const store = window.MicroConnectApp?.userStore;
     const author = store?.findUserByUsername(post.author) || { username: post.author };
-    const liked = post.likes.includes(currentUser.username);
+    const liked = Array.isArray(post.likes) ? post.likes.includes(currentUser.username) : false;
     const isOwner = post.author === currentUser.username;
 
     const mediaHTML = post.mediaDataUrl
@@ -243,7 +320,7 @@
 
         <div class="flex items-center gap-5 pt-1 border-t border-slate-100 dark:border-slate-800">
           <button class="like-btn flex items-center gap-1.5 text-sm transition ${liked ? 'text-red-500 font-semibold' : 'text-slate-400 hover:text-red-400'}">
-            ${liked ? '❤️' : '🤍'} <span class="like-count">${post.likes.length}</span>
+            ${liked ? '❤️' : '🤍'} <span class="like-count">${Array.isArray(post.likes) ? post.likes.length : 0}</span>
           </button>
 
           <button class="comment-toggle-btn flex items-center gap-1.5 text-sm text-slate-400 hover:text-blue-400 transition">
@@ -267,8 +344,6 @@
   }
 
   function bindPostCard(card, currentUser) {
-    const postId = card.dataset.postId;
-
     function updateCommentCounter(post) {
       const countSpan = card.querySelector('.comment-toggle-btn span');
       if (countSpan && post) countSpan.textContent = countPostComments(post);
@@ -294,7 +369,8 @@
         const text = replyInput?.value.trim();
         if (!text) return;
 
-        const result = addReply(postId, commentId, currentUser.username, text);
+        const currentPostId = card.dataset.postId; // Leemos en caliente del DOM por si mutó el ID provisional
+        const result = addReply(currentPostId, commentId, currentUser.username, text);
         if (!result) return;
 
         const store = window.MicroConnectApp?.userStore;
@@ -322,7 +398,8 @@
     });
 
     card.querySelector('.like-btn')?.addEventListener('click', () => {
-      const post = toggleLike(postId, currentUser.username);
+      const currentPostId = card.dataset.postId; // Leemos del DOM en caliente
+      const post = toggleLike(currentPostId, currentUser.username);
       if (!post) return;
 
       const liked = post.likes.includes(currentUser.username);
@@ -341,7 +418,8 @@
       const text = input?.value.trim();
       if (!text) return;
 
-      const post = addComment(postId, currentUser.username, text);
+      const currentPostId = card.dataset.postId; // Extraemos el ID dinámico (INT) para mandarlo a MySQL
+      const post = addComment(currentPostId, currentUser.username, text);
       if (!post) return;
 
       const store = window.MicroConnectApp?.userStore;
@@ -368,7 +446,8 @@
     card.querySelector('.delete-post-btn')?.addEventListener('click', () => {
       if (!confirm('¿Eliminar esta publicación?')) return;
 
-      deletePost(postId, currentUser.username);
+      const currentPostId = card.dataset.postId;
+      deletePost(currentPostId, currentUser.username);
       card.remove();
     });
   }
@@ -511,16 +590,16 @@
 
       errEl.classList.add('hidden');
 
-      addPost(user.username, text, pendingMedia?.dataUrl || '', pendingMedia?.type || '');
+      // 🔥 Cambiamos el flujo capturando el objeto que retorna addPost
+      const nuevoPostCreado = addPost(user.username, text, pendingMedia?.dataUrl || '', pendingMedia?.type || '');
 
       document.getElementById('postText').value = '';
       clearMedia();
 
-      const posts = getPosts();
-
-      if (posts.length > 0) {
+      if (nuevoPostCreado) {
         const div = document.createElement('div');
-        div.innerHTML = postCardHTML(posts[0], user);
+        // 🔥 Forzamos el render usando las propiedades directas del objeto creado (con su id provisional)
+        div.innerHTML = postCardHTML(nuevoPostCreado, user);
 
         const card = div.firstElementChild;
         feedContainer.prepend(card);
@@ -585,7 +664,7 @@
 
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
       window.MicroConnectAuth.clearSession();
-      window.location.replace('../index.html');
+      window.location.replace('../index.php');
     });
   }
 

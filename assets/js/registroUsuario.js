@@ -4,8 +4,8 @@
   const SESSION_USER_KEY = 'mc_user';
   const REGISTER_DRAFT_KEY = 'mc_register_draft';
 
-  const LOGIN_PAGE = '../index.html';
-  const HOME_PAGE = './home.html';
+  const LOGIN_PAGE = '../index.php';
+  const HOME_PAGE = './home.php';
 
   const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
 
@@ -473,6 +473,7 @@
     });
 
     form.addEventListener('submit', (e) => {
+      // Detenemos el envío automático para validar primero en el cliente con tu JS
       e.preventDefault();
 
       const isValid = validateAll();
@@ -487,31 +488,14 @@
         return;
       }
 
-      const store = getUserStore();
+      // ¡AQUÍ OCURRE LA MAGIA!
+      // Si el formulario pasó todas tus validaciones de JS con éxito:
+      
+      // 1. Borramos el borrador temporal porque el registro ya es real
+      sessionStorage.removeItem(REGISTER_DRAFT_KEY);
 
-      if (!store) {
-        setFormError('No se pudo acceder al almacenamiento temporal de usuarios.');
-        return;
-      }
-
-      const newUser = {
-        username: sanitizePlain(fields.username.value),
-        displayName: sanitizePlain(fields.displayName.value),
-        birthDate: fields.birthDate.value,
-        email: sanitizePlain(fields.email.value),
-        password: String(fields.password.value || '').trim(),
-        bio: sanitizePlain(fields.bio.value),
-        avatarDataUrl,
-        createdAt: new Date().toISOString()
-      };
-
-      try {
-        store.addUser(newUser);
-        sessionStorage.removeItem(REGISTER_DRAFT_KEY);
-        window.location.replace(LOGIN_PAGE);
-      } catch (error) {
-        setFormError(error.message || 'No se pudo registrar el usuario.');
-      }
+      // 2. Le ordenamos al formulario hacer el SUBMIT real hacia el backend PHP
+      form.submit(); 
     });
 
     const backToLogin = document.getElementById('backToLogin');

@@ -1,4 +1,61 @@
-<!-- views/registroUsuario.html -->
+<?php
+// 1. Incluimos el archivo de conexión
+include("../conexion.php");
+
+$mensajeFeedback = ""; // Variable para mostrar errores o éxito en la interfaz
+
+// 2. Detectamos si el usuario presionó el botón de enviar
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    
+    // 3. Sanitizamos los datos que vienen del formulario para evitar Inyección SQL
+    $idUsuario = mysqli_real_escape_string($conexion, $_POST['username']);
+    $nombreUs = mysqli_real_escape_string($conexion, $_POST['displayName']); 
+    $correoElectronicoUs = mysqli_real_escape_string($conexion, $_POST['email']);
+    $fechaNacimiento = mysqli_real_escape_string($conexion, $_POST['birthDate']);
+    
+    // Recibimos la biografía (si está vacía, la guardamos como NULL)
+    $biografiaInput = trim($_POST['bio']);
+    $biografiaUs = !empty($biografiaInput) ? "'" . mysqli_real_escape_string($conexion, $biografiaInput) . "'" : "NULL";
+
+    // 🔥 4. NUEVO: Procesamos la foto de perfil en el registro (Conversión a Base64)
+    $fotoPerfilUs = "NULL"; // Por defecto, si no sube nada, se queda en NULL
+    if (isset($_FILES['profilePhoto']) && $_FILES['profilePhoto']['error'] == UPLOAD_ERR_OK) {
+        $fileTmpPath = $_FILES['profilePhoto']['tmp_name'];
+        $fileType = $_FILES['profilePhoto']['type'];
+        
+        // Convertimos el archivo binario a texto codificado Base64
+        $data = file_get_contents($fileTmpPath);
+        $base64 = 'data:' . $fileType . ';base64,' . base64_encode($data);
+        $base64Escaped = mysqli_real_escape_string($conexion, $base64);
+        
+        $fotoPerfilUs = "'$base64Escaped'"; // Lo envolvemos en comillas para SQL
+    }
+
+    // 5. Encriptación segura de la contraseña con Bcrypt
+    $passwordPlain = $_POST['password'];
+    $contraseñaUs = password_hash($passwordPlain, PASSWORD_BCRYPT);
+    
+    // Generamos la fecha de creación con el formato de MySQL
+    $fechaCreacion = date("Y-m-d");
+
+    // 6. Validar primero si el nombre de usuario o el correo ya existen
+    $verificarUsuario = mysqli_query($conexion, "SELECT idUsuario FROM tUsuario WHERE idUsuario = '$idUsuario' OR correoElectronicoUs = '$correoElectronicoUs'");
+    
+    if (mysqli_num_rows($verificarUsuario) > 0) {
+        $mensajeFeedback = '<div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">El nombre de usuario o el correo electrónico ya se encuentran registrados.</div>';
+    } else {
+        // 🔥 7. CORREGIDO: Cambiamos el NULL estático por nuestra variable $fotoPerfilUs
+        $sql = "INSERT INTO tUsuario (idUsuario, nombreUs, biografiaUs, fotoPerfilUs, correoElectronicoUs, contraseñaUs, fechaCreacion, fechaNacimiento) 
+                VALUES ('$idUsuario', '$nombreUs', $biografiaUs, $fotoPerfilUs, '$correoElectronicoUs', '$contraseñaUs', '$fechaCreacion', '$fechaNacimiento')";
+
+        if (mysqli_query($conexion, $sql)) {
+            $mensajeFeedback = '<div class="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 mb-4">¡Cuenta creada con éxito! Ya puedes iniciar sesión.</div>';
+        } else {
+            $mensajeFeedback = '<div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">Error en el sistema: ' . mysqli_error($conexion) . '</div>';
+        }
+    }
+}
+?>
 <!doctype html>
 <html lang="es">
 <head>
@@ -178,7 +235,9 @@
         </p>
       </header>
 
-      <form id="registerForm" novalidate class="space-y-6">
+      <?php if (!empty($mensajeFeedback)) echo $mensajeFeedback; ?>
+
+      <form id="registerForm" method="POST" action="" enctype="multipart/form-data" novalidate class="space-y-6">
         <div class="grid gap-5 md:grid-cols-2">
           <div>
             <label for="regUsername" class="block text-sm font-semibold mb-1">

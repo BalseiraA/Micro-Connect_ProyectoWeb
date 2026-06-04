@@ -1,268 +1,160 @@
-README.txt
-App Micro-Connect
+App Micro-Connect (Versión Full-Stack con PHP y MySQL)
 ============================================================
 
 IMPORTANTE:
-El proyecto debe ejecutarse desde un servidor local, no abriéndose
-directamente como archivo file:/// desde el explorador de Windows.
-
+El proyecto debe ejecutarse estrictamente desde un servidor local de PHP
+(como XAMPP con Apache), no abriéndose directamente como archivo file:///
+desde el explorador de Windows, ni levantándose únicamente con Live Server, 
+ya que los archivos .php requieren un motor de servidor para procesarse.
 
 PROGRAMAS NECESARIOS
 ------------------------------------------------------------
 Para correr correctamente el proyecto en otra computadora se necesitan:
 
 1. Visual Studio Code
-   - Editor recomendado para abrir y modificar el proyecto.
+   - Editor recomendado para abrir y modificar el código del proyecto.
 
-2. Extensión Live Server para Visual Studio Code
-   - Sirve para levantar el proyecto como servidor local.
-   - La página debe abrirse con una ruta parecida a:
-     http://127.0.0.1:5500/index.html
+2. XAMPP (Control Panel)
+   - Servidor local que incluye el módulo de Apache (para procesar PHP)
+     y el módulo de MySQL (para la base de datos).
 
-3. Node.js
-   - Instalar preferentemente la versión LTS desde el sitio oficial.
-   - npm se instala junto con Node.js.
-   - Asegurarse de elegir la opción Add to PATH durante la instalación.
+3. MySQL Workbench
+   - Herramienta para ejecutar el script DDL, administrar las tablas, 
+     las llaves foráneas y revisar los registros en tiempo real.
+
+4. Node.js
+   - Instalar la versión LTS desde el sitio oficial.
+   - npm se instala de forma conjunta con Node.js.
+   - Asegurarse de elegir la opción "Add to PATH" durante la instalación.
    - Después de instalar Node.js, cerrar y volver a abrir VS Code.
 
-4. npm
-   - Se usa para instalar las dependencias del proyecto y ejecutar Tailwind.
-
 5. Navegador web moderno
-   - Recomendado: Google Chrome, Microsoft Edge, Brave o Firefox.
+   - Recomendado: Opera, Google Chrome, Microsoft Edge o Firefox.
 
 
-VERIFICAR INSTALACIÓN DE NODE Y NPM
+UBICACIÓN OBLIGATORIA DEL PROYECTO
 ------------------------------------------------------------
-Abrir una terminal en VS Code y ejecutar:
+Para que Apache pueda leer tus archivos de PHP, la carpeta completa del 
+proyecto DEBE estar guardada dentro del directorio raíz de XAMPP:
 
-    node -v
-
-Después:
-
-    npm -v
-
-Si PowerShell bloquea npm con un error relacionado con npm.ps1 o
-ExecutionPolicy, usar una de estas dos opciones:
-
-Opción rápida:
-
-    npm.cmd -v
-
-Y para los comandos del proyecto usar npm.cmd en lugar de npm.
-
-Después cerrar la terminal, abrir una nueva y probar de nuevo:
-
-    npm -v
+    Ruta esperada: C:\xampp\htdocs\Micro-Connect_ProyectoWeb\
 
 
-DEPENDENCIAS DEL PROYECTO
+CONFIGURACIÓN INICIAL DE LA BASE DE DATOS (MYSQL)
 ------------------------------------------------------------
-El proyecto necesita estas dependencias de desarrollo:
+Antes de abrir el sitio web, debes levantar la base de datos:
 
-    tailwindcss
-    @tailwindcss/cli
+1. Abre el Panel de Control de XAMPP y dale clic al botón "Start" en el 
+   módulo de MySQL.
+2. Abre MySQL Workbench y conéctate a tu instancia local (`Local instance`).
+3. Abre y ejecuta por completo el archivo `Microconnect DDLv2.sql`. Esto 
+   creará el esquema fresco y las 7 tablas normalizadas (`tUsuario`, 
+   `tPublicacion`, `tComentario`, `tLikePublicacion`, etc.).
+4. Ajuste del tamaño de paquetes (Obligatorio para fotos de perfil):
+   Para evitar errores por transferencia de imágenes Base64, ejecuta este 
+   comando en una pestaña de consultas limpia en Workbench:
+   
+    SET GLOBAL max_allowed_packet = 134217728;
+    
+5. En el panel de XAMPP, dale "Stop" a MySQL y luego "Start" para aplicar.
 
-Si el proyecto se descarga en otra computadora y no trae la carpeta
-node_modules, se deben instalar las dependencias ejecutando:
 
-    npm install
-
-Si se está configurando desde cero, se pueden instalar con:
-
-    npm install -D tailwindcss @tailwindcss/cli
-
-
-ARCHIVOS IMPORTANTES
+ARCHIVOS IMPORTANTES Y ESTRUCTURA
 ------------------------------------------------------------
-Estructura esperada del proyecto:
+Estructura final del proyecto dentro de htdocs:
 
-    proyecto/
-    ├── index.html
-    ├── package.json
+    Micro-Connect_ProyectoWeb/
+    ├── index.php                 <-- Pantalla de Login inicial (sustituye a index.html)
+    ├── conexion.php              <-- Puente de conexión con MySQL
+    ├── package.json              <-- Configuración de dependencias de Tailwind
     ├── src/
-    │   └── input.css
+    │   └── input.css             <-- Estilos base para el compilador
     ├── assets/
     │   ├── css/
-    │   │   ├── tailwind.css
-    │   │   └── styles.css
+    │   │   ├── tailwind.css      <-- CSS Autogenerado por Tailwind
+    │   │   └── styles.css        <-- Estilos personalizados del Liquid Glass
     │   └── js/
     │       ├── main.js
-    │       └── login.js
+    │       ├── login.js
+    │       ├── home.js           <-- Controlador dinámico del Feed
+    │       └── myProfile.js      <-- Controlador de la edición de perfil
     └── views/
-        └── home.html
+        ├── home.php              <-- Feed sincronizado con consultas a MySQL
+        ├── registroUsuario.php   <-- Formulario de Registro con soporte de imagen Base64
+        ├── guardarPost.php       <-- Procesador asíncrono de publicaciones
+        ├── guardarComentario.php <-- Procesador asíncrono de comentarios
+        ├── guardarLike.php       <-- Procesador asíncrono de Likes (Toggle)
+        └── editarUsuario.php     <-- Procesador asíncrono de edición de perfil
 
 
-CONFIGURACIÓN DE PACKAGE.JSON
+CONFIGURACIÓN DE PACKAGE.JSON (TAILWIND)
 ------------------------------------------------------------
-El archivo package.json debe incluir scripts similares a estos:
+El archivo package.json incluye los scripts automatizados de compilación:
 
     "scripts": {
       "dev:css": "tailwindcss -i ./src/input.css -o ./assets/css/tailwind.css --watch",
       "build:css": "tailwindcss -i ./src/input.css -o ./assets/css/tailwind.css --minify"
     }
 
-El script dev:css genera el CSS de Tailwind y observa cambios.
-El script build:css genera una versión minificada para entrega final.
+- El script dev:css genera el CSS de Tailwind y observa cambios en vivo.
+- El script build:css genera la versión minificada para la entrega final.
 
 
-CÓMO CORRER EL PROYECTO
+CÓMO CORRER EL PROYECTO PASO A PASO
 ------------------------------------------------------------
-1. Abrir la carpeta del proyecto en Visual Studio Code.
-
-2. Abrir una terminal en la raíz del proyecto.
-
-3. Instalar dependencias si es necesario:
+1. Abre el Panel de Control de XAMPP y presiona "Start" en **Apache** y **MySQL**.
+2. Abre la carpeta del proyecto desde Visual Studio Code.
+3. Abre una terminal en la raíz del proyecto e instala dependencias de Tailwind:
 
     npm install
+    (Si PowerShell lo bloquea, usar: npm.cmd install)
 
-   Si PowerShell bloquea npm, usar:
-
-    npm.cmd install
-
-4. Ejecutar Tailwind en modo desarrollo:
+4. Ejecuta el compilador de Tailwind en modo desarrollo:
 
     npm run dev:css
+    (Si PowerShell lo bloquea, usar: npm.cmd run dev:css)
 
-   Si PowerShell bloquea npm, usar:
+5. Deja esa terminal abierta para que Tailwind siga escuchando tus cambios en el CSS.
+6. **ABRIR EL SITIO WEB:** Abre tu navegador y escribe la siguiente URL en la barra de direcciones:
 
-    npm.cmd run dev:css
+    http://localhost/Micro-Connect_ProyectoWeb/index.php
 
-5. Dejar esa terminal abierta.
-   Tailwind estará generando y actualizando:
-
-    assets/css/tailwind.css
-
-6. Abrir index.html con Live Server:
-   - Clic derecho sobre index.html.
-   - Seleccionar "Open with Live Server".
-
-7. Verificar que la URL se vea parecida a:
-
-    http://127.0.0.1:5500/index.html
-
-   NO debe abrirse como:
-
-    file:///C:/Users/...
+   NO debe abrirse mediante Live Server (puerto 5500) ni arrastrando el 
+   archivo como file:/// desde el explorador.
 
 
-USUARIOS DE PRUEBA
+AUTENTICACIÓN Y SEGURIDAD REAL
 ------------------------------------------------------------
-El login actual usa usuarios definidos localmente en login.js.
-Ejemplos de usuarios de prueba:
-
-    Usuario: usuario
-    Contraseña: pass1234
-
-    Usuario: maria
-    Contraseña: react2026
-
-NOTA DE SEGURIDAD:
-Estos usuarios están escritos directamente en el frontend temporalmente. En la versión final del programa, la autenticación debe
-hacerse desde un backend seguro y nunca se han exponer contraseñas en archivos JavaScript del cliente.
+A diferencia de las versiones de prueba donde los usuarios estaban estáticos 
+en el frontend, esta versión final cuenta con seguridad real:
+- Las contraseñas se encriptan de forma segura en el servidor mediante Bcrypt 
+  (`password_hash`).
+- Las sesiones se validan del lado del servidor usando `session_start()`.
+- Para ingresar, primero ve a la pantalla de "Crear cuenta", completa tus datos, 
+  sube una foto de perfil y el sistema te dará de alta de forma real en MySQL.
 
 
 PROBLEMAS COMUNES Y SOLUCIONES
 ------------------------------------------------------------
+1. Error: "Got a packet bigger than 'max_allowed_packet' bytes"
+   Causa: La imagen de perfil en Base64 es muy grande para la compuerta por defecto.
+   Solución: Ejecuta `SET GLOBAL max_allowed_packet = 134217728;` en MySQL Workbench
+   y reinicia el servicio de MySQL desde el panel de XAMPP.
 
-1. Error: "npm no se reconoce como nombre de un cmdlet"
-   Causa:
-   - Node.js no está instalado o no está agregado al PATH.
+2. Al registrar un usuario, la página muestra un error fatal de SQL
+   Causa: No se ha alterado la columna de la foto de perfil en Workbench y se quedó 
+   con la longitud corta de VARCHAR(500).
+   Solución: Ejecuta `ALTER TABLE tUsuario MODIFY COLUMN fotoPerfilUs MEDIUMTEXT NULL;` 
+   en Workbench para que acepte textos de gran longitud.
 
-   Solución:
-   - Instalar Node.js.
-   - Cerrar y abrir VS Code.
-   - Probar node -v y npm -v.
+3. La página se ve en blanco o sin estilos al cargar desde localhost
+   Causa: El comando de Tailwind no está corriendo o el archivo index.php no está 
+   bien enlazado.
+   Solución: Asegúrate de mantener la terminal ejecutando `npm run dev:css` en segundo plano.
 
-2. Error: "No se puede cargar npm.ps1 porque la ejecución de scripts está
-   deshabilitada"
-   Causa:
-   - PowerShell bloquea scripts por política de seguridad.
+4. Los cambios de perfil o comentarios no aparecen en caliente
+   Causa: El navegador Opera o Chrome retienen una caché muy agresiva.
+   Solución: Presiona F12, haz clic derecho sobre el botón de recargar del 
+   navegador y selecciona "Vaciar la caché y volver a cargar de manera forzada".
 
-   Soluciones:
-   - Usar npm.cmd en lugar de npm.
-   - O ejecutar:
-     Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-
-3. Error: "Missing script: dev:css"
-   Causa:
-   - El package.json no tiene definido el script dev:css.
-
-   Solución:
-   - Agregar en package.json:
-
-     "scripts": {
-       "dev:css": "tailwindcss -i ./src/input.css -o ./assets/css/tailwind.css --watch",
-       "build:css": "tailwindcss -i ./src/input.css -o ./assets/css/tailwind.css --minify"
-     }
-
-4. La página se ve sin estilos o muy básica
-   Causa:
-   - Tailwind no generó assets/css/tailwind.css.
-   - El archivo tailwind.css no está bien enlazado.
-   - No se está ejecutando npm run dev:css.
-
-   Solución:
-   - Ejecutar:
-     npm run dev:css
-   - Revisar que index.html tenga:
-     <link rel="stylesheet" href="./assets/css/tailwind.css" />
-
-5. El navegador muestra errores por file:///
-   Causa:
-   - El proyecto se abrió directamente desde el explorador de archivos.
-
-   Solución:
-   - Abrir index.html con Live Server.
-   - Usar una URL http://127.0.0.1:5500/
-
-6. El fondo en el Inicio de Sesión no se ve
-   Causas posibles:
-   - styles.css está sobreescribiendo el fondo del body o del main.
-   - El bloque CSS del Liquid Glass está antes de styles.css.
-   - El main tiene fondo blanco y tapa la animación.
-   - Falta la estructura .liquid-bg en index.html.
-
-   Solución:
-   - Colocar las reglas del Liquid Glass después de styles.css.
-   - Asegurar que el main del login tenga fondo transparente:
-     body.login-bg main {
-       background: transparent !important;
-     }
-
-7. Cambios CSS no aparecen
-   Causa:
-   - Caché del navegador o Tailwind no está observando los cambios.
-
-   Solución:
-   - Verificar que npm run dev:css siga corriendo.
-   - Recargar con Ctrl + F5.
-
-
-NOTAS DE DESARROLLO
-------------------------------------------------------------
-- No editar manualmente assets/css/tailwind.css, porque se regenera
-  automáticamente.
-- Los estilos personalizados deben colocarse en un bloque
-  style dentro del html si solo aplican a esa página.
-
-
-COMANDOS PRINCIPALES
-------------------------------------------------------------
-Instalar dependencias:
-
-    npm install
-
-Ejecutar Tailwind en desarrollo:
-
-    npm run dev:css
-
-Generar CSS minificado para entrega:
-
-    npm run build:css
-
-Alternativa si PowerShell bloquea npm:
-
-    npm.cmd install
-    npm.cmd run dev:css
-    npm.cmd run build:css
+============================================================

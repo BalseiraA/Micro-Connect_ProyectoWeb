@@ -1,4 +1,43 @@
-<!-- index.html -->
+<?php
+// 1. Conectamos con la base de datos (están en la misma carpeta raíz)
+include("conexion.php");
+
+$mensajeError = "";
+
+// 2. Detectamos si el usuario envió el formulario mediante método POST
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    
+    // Sanitizamos el input del usuario para prevenir inyección SQL
+    $idUsuario = mysqli_real_escape_string($conexion, $_POST['username']);
+    $passwordPlain = $_POST['password'];
+
+    // 3. Buscamos al usuario en la tabla tUsuario
+    $consulta = "SELECT idUsuario, contraseñaUs FROM tUsuario WHERE idUsuario = '$idUsuario'";
+    $resultado = mysqli_query($conexion, $consulta);
+
+    if (mysqli_num_rows($resultado) > 0) {
+        // Si el usuario existe, extraemos sus valores
+        $usuario = mysqli_fetch_assoc($resultado);
+        
+        // 4. Verificamos la contraseña ingresada contra el Hash de Bcrypt guardado
+        if (password_verify($passwordPlain, $usuario['contraseñaUs'])) {
+            
+            // ¡Credenciales correctas! Iniciamos la sesión en el servidor
+            session_start();
+            $_SESSION['usuario'] = $usuario['idUsuario'];
+            
+            // Redirigimos al Home dinámico que ya tienes dentro de views/
+            header("Location: ./views/home.php");
+            exit();
+            
+        } else {
+            $mensajeError = "La contraseña introducida es incorrecta.";
+        }
+    } else {
+        $mensajeError = "El nombre de usuario no está registrado.";
+    }
+}
+?>
 <!doctype html>
 <html lang="es">
 <head>
@@ -240,7 +279,13 @@
       <h1 class="text-3xl font-bold mb-2">Micro-Connect</h1>
       <p class="text-slate-600 mb-6">Inicia sesión para continuar.</p>
 
-      <form id="loginForm" action="./views/home.html" method="get" novalidate class="space-y-4">
+      <?php if (!empty($mensajeError)): ?>
+        <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 mb-4">
+            <?php echo $mensajeError; ?>
+        </div>
+      <?php endif; ?>
+
+      <form id="loginForm" action="" method="POST" novalidate class="space-y-4">
         <div>
           <label for="username" class="block text-sm font-medium mb-1">Usuario</label>
           <input

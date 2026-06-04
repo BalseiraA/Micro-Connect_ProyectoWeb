@@ -27,15 +27,15 @@
   }
 
   function getLoginPath() {
-    return isInsideViewsFolder() ? '../index.html' : './index.html';
+    return isInsideViewsFolder() ? '../index.php' : './index.php';
   }
 
   function getHomePath() {
-    return isInsideViewsFolder() ? './home.html' : './views/home.html';
+    return isInsideViewsFolder() ? './home.php' : './views/home.php';
   }
 
   function getRegisterPath() {
-    return isInsideViewsFolder() ? './registroUsuario.html' : './views/registroUsuario.html';
+    return isInsideViewsFolder() ? './registroUsuario.php' : './views/registroUsuario.php';
   }
 
   function isLoginPage() {
@@ -43,7 +43,7 @@
   }
 
   function isRegisterPage() {
-    return normalizePath(window.location.pathname).endsWith('/registroUsuario.html') ||
+    return normalizePath(window.location.pathname).endsWith('/registroUsuario.php') ||
       !!document.getElementById('registerForm');
   }
 
@@ -73,22 +73,9 @@
   }
 
   function protectNavigation() {
-    const loginPage = isLoginPage();
-    const registerPage = isRegisterPage();
-    const authenticated = isAuthenticated();
-
-    if ((loginPage || registerPage) && authenticated) {
-      window.location.replace(getHomePath());
-      return false;
-    }
-
-    if (!loginPage && !registerPage && !authenticated) {
-      clearSession();
-      window.location.replace(getLoginPath());
-      return false;
-    }
-
-    return true;
+    // MODIFICADO: Delegamos la seguridad y las redirecciones de sesión seguras a PHP 
+    // en el backend para evitar bucles infinitos con el almacenamiento local.
+    return true; 
   }
 
   function showFieldError(input, errorEl, message = '') {
@@ -222,39 +209,17 @@
     });
 
     form.addEventListener('submit', (e) => {
+      // 1. Detenemos el envío automático temporalmente para validar en el cliente con tu JS
       e.preventDefault();
 
       const isValid = validateForm();
       if (!isValid) return;
 
-      const typedUsername = sanitize(username.value);
-      const typedPassword = String(password.value || '').trim();
-
-      const store = getUserStore();
-
-      if (!store) {
-        setLoginError('No se pudo acceder al almacenamiento de usuarios.');
-        clearSession();
-        return;
-      }
-
-      const user = store.findUserByUsername(typedUsername);
-
-      const exists = !!user && user.password === typedPassword;
-
-      if (!exists) {
-        setLoginError('Credenciales inválidas.');
-        clearSession();
-        return;
-      }
-
+      // 2. Si las validaciones de formato pasan con éxito, limpiamos errores
       setLoginError('');
-      startSession(user.username);
 
-      const formAction = form.getAttribute('action') || getHomePath();
-      const redirectTo = normalizePath(formAction);
-
-      window.location.replace(redirectTo);
+      // 3. MODIFICADO: Forzamos el envío real del formulario para que viaje al backend dinámico en index.php
+      form.submit();
     });
   }
 

@@ -244,30 +244,15 @@
       const feedback = modal.querySelector('#currentPassFeedback');
 
       if (!input || !feedback) return false;
-
       const value = input.value;
-
-      const store = window.MicroConnectApp.userStore;
-      const users = store.getUsers();
-      const storedUser = users.find(u => u.username === user.username);
 
       if (!value) {
         setInputState(input, feedback, false, '');
         return false;
       }
 
-      if (!storedUser) {
-        setInputState(input, feedback, false, 'No se encontró el usuario registrado.');
-        return false;
-      }
-
-      if (value === storedUser.password) {
-        setInputState(input, feedback, true, 'La contraseña actual es correcta.');
-        return true;
-      }
-
-      setInputState(input, feedback, false, 'La contraseña actual no coincide.');
-      return false;
+      setInputState(input, feedback, true, 'Listo para validar en servidor.');
+      return true;
     }
 
     function getPasswordStrength(password) {
@@ -383,16 +368,6 @@
     });
 
     modal.querySelector('#saveProfileBtn')?.addEventListener('click', () => {
-      const store = window.MicroConnectApp.userStore;
-      const users = store.getUsers();
-      const idx = users.findIndex(u => u.username === user.username);
-
-      if (idx === -1) {
-        showMsg('No se encontró el usuario.', 'error');
-        return;
-      }
-
-      const updated = { ...users[idx] };
       const newName = sanitize(modal.querySelector('#displayName').value);
 
       if (!newName) {
@@ -400,57 +375,68 @@
         return;
       }
 
-      updated.displayName = newName;
-      updated.email = sanitize(modal.querySelector('#editEmail').value);
-      updated.birthDate = modal.querySelector('#editBirthDate').value || '';
-      updated.bio = sanitize(modal.querySelector('#editBio').value);
+      // ─── CONEXIÓN BACKEND: Enviamos datos reales a MySQL mediante FormData ───
+      const formData = new FormData();
+      formData.append('displayName', newName);
+      formData.append('email', sanitize(modal.querySelector('#editEmail').value));
+      formData.append('birthDate', modal.querySelector('#editBirthDate').value || '');
+      formData.append('bio', sanitize(modal.querySelector('#editBio').value));
 
-      const cp = modal.querySelector('#editCurrentPass').value;
-      const np = modal.querySelector('#editNewPass').value;
-      const nc = modal.querySelector('#editNewPassConfirm').value;
+      // 🔥 CORREGIDO: Extraemos el archivo real de la foto de perfil y lo inyectamos al FormData
+      const fileInput = modal.querySelector('#avatarInput');
+      if (fileInput && fileInput.files.length > 0) {
+        formData.append('profilePhoto', fileInput.files[0]);
+      }
 
-      if (cp || np || nc) {
-        const isCurrentPasswordValid = validateCurrentPassword();
+      // Leemos directamente el input sin pasarlo por el sanitize() global
+      const cp = String(modal.querySelector('#editCurrentPass')?.value || '').trim();
+      const np = String(modal.querySelector('#editNewPass')?.value || '').trim();
+      const nc = String(modal.querySelector('#editNewPassConfirm')?.value || '').trim();
+
+      // EVALUACIÓN ESTRICTA: Solo entramos a validar si verdaderamente escribiste algo
+      if (cp !== "") {
         const isNewPasswordValid = validateNewPassword();
         const isConfirmPasswordValid = validateConfirmPassword();
-
-        if (!isCurrentPasswordValid) {
-          showMsg('La contraseña actual no es correcta.', 'error');
-          return;
-        }
 
         if (!isNewPasswordValid) {
           showMsg('La nueva contraseña debe tener fortaleza media o fuerte.', 'error');
           return;
         }
-
         if (!isConfirmPasswordValid) {
           showMsg('Las contraseñas nuevas no coinciden.', 'error');
           return;
         }
 
-        updated.password = np;
+        formData.append('currentPassword', cp);
+        formData.append('newPassword', np);
+      } else if (np !== "" || nc !== "") {
+        showMsg('Escribe tu contraseña actual para autorizar los cambios.', 'error');
+        return;
       }
 
-      const avatarImg = avatarPreview.querySelector('img');
-
-      if (avatarImg?.src?.startsWith('data:')) {
-        updated.avatarDataUrl = avatarImg.src;
-      }
-
-      users[idx] = updated;
-      store.saveUsers(users);
-
-      showMsg('¡Perfil actualizado!', 'success');
-
-      setTimeout(() => {
-        closeModal();
-
-        const fresh = store.findUserByUsername(updated.username);
-
-        shared()?.renderSidebarUser?.(fresh);
-        window.MicroConnectHome?.renderTab?.('perfil');
-      }, 900);
+      // Hacemos la llamada asíncrona fetch hacia el archivo procesador editarUsuario.php
+      fetch('editarUsuario.php', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          showMsg('¡Perfil actualizado con éxito!', 'success');
+          
+          setTimeout(() => {
+            closeModal();
+            // Recargamos la pestaña para que home.php re-consulte a MySQL en vivo
+            window.location.reload();
+          }, 900);
+        } else {
+          showMsg(data.message, 'error');
+        }
+      })
+      .catch(err => {
+        console.error('Error al sincronizar edición:', err);
+        showMsg('Error de red al intentar actualizar el perfil.', 'error');
+      });
     });
   }
 
