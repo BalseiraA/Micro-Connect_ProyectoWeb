@@ -74,6 +74,16 @@
     const formData = new FormData();
     formData.append('text', text);
 
+    // NUEVO: Buscamos si hay un archivo seleccionado en los inputs de imagen o video
+    const imageInput = document.getElementById('postImageInput');
+    const videoInput = document.getElementById('postVideoInput');
+    
+    if (imageInput && imageInput.files.length > 0) {
+        formData.append('postMedia', imageInput.files[0]);
+    } else if (videoInput && videoInput.files.length > 0) {
+        formData.append('postMedia', videoInput.files[0]);
+    }
+
     fetch('guardarPost.php', {
       method: 'POST',
       body: formData
@@ -92,8 +102,7 @@
           savePosts(postsActualizados);
         }
         
-        // 2. 🔥 EL TRUCO MÁGICO: Buscamos la tarjeta en pantalla que tiene el ID de texto
-        // y le inyectamos dinámicamente el atributo numérico real en caliente
+        // 2. Buscamos la tarjeta en pantalla que tiene el ID de texto y le inyectamos el ID real
         const tarjetaPost = document.querySelector(`[data-post-id="${provisionalId}"]`);
         if (tarjetaPost) {
           tarjetaPost.dataset.postId = idNumerico;

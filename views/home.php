@@ -15,9 +15,14 @@ include("../conexion.php");
 $queryUser = mysqli_query($conexion, "SELECT * FROM tUsuario WHERE idUsuario = '$usuarioLoggeado'");
 $datosUsuario = mysqli_fetch_assoc($queryUser);
 
-// 4. Traer todas las publicaciones de la base de datos
-$queryPosts = "SELECT p.idPublicacion as id, p.idUsuario as author, p.contenidoTextoPub as text, p.fechaHoraPub as createdAt 
+// 4. 🔥 CORREGIDO: Traemos las publicaciones con LEFT JOIN para jalar el contenido de tMultimedia
+$queryPosts = "SELECT p.idPublicacion as id, 
+                      p.idUsuario as author, 
+                      p.contenidoTextoPub as text, 
+                      p.fechaHoraPub as createdAt,
+                      m.urlMult as mediaDataUrl
                FROM tPublicacion p 
+               LEFT JOIN tMultimedia m ON p.idMultimedia = m.idMultimedia
                ORDER BY p.fechaHoraPub DESC";
 $resultadoPosts = mysqli_query($conexion, $queryPosts);
 
@@ -28,7 +33,19 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     
     $currentPostId = $row['id'];
     
-    // 🔥 NUEVO: Traer los usuarios que le dieron like a esta publicación desde MySQL
+    // 🔥 NUEVO: Identificamos dinámicamente si la cadena Base64 corresponde a una imagen o video
+    $row['mediaType'] = '';
+    if (!empty($row['mediaDataUrl'])) {
+        if (strpos($row['mediaDataUrl'], 'data:video/') !== false) {
+            $row['mediaType'] = 'video';
+        } else {
+            $row['mediaType'] = 'image';
+        }
+    } else {
+        $row['mediaDataUrl'] = ''; // Aseguramos un string vacío para el LocalStorage si no hay contenido
+    }
+    
+    // Traer los usuarios que le dieron like a esta publicación desde MySQL
     $queryLikes = "SELECT idUsuario FROM tLikePublicacion WHERE idPublicacion = $currentPostId";
     $resultadoLikes = mysqli_query($conexion, $queryLikes);
     
@@ -110,7 +127,7 @@ $jsonPosts = json_encode($postsArray);
       sessionStorage.setItem('mc_auth', 'true');
       sessionStorage.setItem('mc_user', '<?php echo $usuarioLoggeado; ?>');
       
-      // 🔥 CORREGIDO: Se inyecta el JSON directo sin envolverlo en otra codificación de texto
+      // Se inyecta el JSON directo sin envolverlo en otra codificación de texto
       const postsRaw = JSON.stringify(<?php echo $jsonPosts; ?>);
       localStorage.setItem('mc_posts', postsRaw);
       

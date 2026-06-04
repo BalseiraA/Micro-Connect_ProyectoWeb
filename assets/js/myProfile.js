@@ -382,19 +382,25 @@
       formData.append('birthDate', modal.querySelector('#editBirthDate').value || '');
       formData.append('bio', sanitize(modal.querySelector('#editBio').value));
 
-      // 🔥 CORREGIDO: Extraemos el archivo real de la foto de perfil y lo inyectamos al FormData
+      // Extraemos el archivo real de la foto de perfil y lo inyectamos al FormData 
       const fileInput = modal.querySelector('#avatarInput');
       if (fileInput && fileInput.files.length > 0) {
         formData.append('profilePhoto', fileInput.files[0]);
       }
 
-      // Leemos directamente el input sin pasarlo por el sanitize() global
+      // Leemos directamente los inputs sin pasarlos por el sanitize() global 
       const cp = String(modal.querySelector('#editCurrentPass')?.value || '').trim();
       const np = String(modal.querySelector('#editNewPass')?.value || '').trim();
       const nc = String(modal.querySelector('#editNewPassConfirm')?.value || '').trim();
 
-      // EVALUACIÓN ESTRICTA: Solo entramos a validar si verdaderamente escribiste algo
-      if (cp !== "") {
+      // 🔥 CORRECCIÓN INTELIGENTE: Condicionamos basándonos únicamente en si la nueva contraseña tiene texto.
+      // Así evitamos que el autocompletado automático de contraseñas de Opera tranque el flujo.
+      if (np !== "" || nc !== "") {
+        if (cp === "") {
+          showMsg('Escribe tu contraseña actual para autorizar los cambios de seguridad.', 'error');
+          return;
+        }
+
         const isNewPasswordValid = validateNewPassword();
         const isConfirmPasswordValid = validateConfirmPassword();
 
@@ -409,12 +415,9 @@
 
         formData.append('currentPassword', cp);
         formData.append('newPassword', np);
-      } else if (np !== "" || nc !== "") {
-        showMsg('Escribe tu contraseña actual para autorizar los cambios.', 'error');
-        return;
       }
 
-      // Hacemos la llamada asíncrona fetch hacia el archivo procesador editarUsuario.php
+      // Hacemos la llamada asíncrona fetch hacia el archivo procesador editarUsuario.php 
       fetch('editarUsuario.php', {
         method: 'POST',
         body: formData
@@ -426,7 +429,7 @@
           
           setTimeout(() => {
             closeModal();
-            // Recargamos la pestaña para que home.php re-consulte a MySQL en vivo
+            // Recargamos la pestaña para que home.php re-consulte a MySQL en vivo 
             window.location.reload();
           }, 900);
         } else {
