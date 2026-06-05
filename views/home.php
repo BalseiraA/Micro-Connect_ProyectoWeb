@@ -1,5 +1,5 @@
 <?php
-// 1. Validar sesión en el servidor local
+// 1. Validar sesión en el servidor local 
 session_start();
 if (!isset($_SESSION['usuario'])) {
     header("Location: ../index.php");
@@ -8,21 +8,25 @@ if (!isset($_SESSION['usuario'])) {
 
 $usuarioLoggeado = $_SESSION['usuario'];
 
-// 2. Conectar a la base de datos
+// 2. Conectar a la base de datos 
 include("../conexion.php");
 
-// 3. Traer los datos del usuario loggeado (Nombre, Biografía, etc.)
+// 3. Traer los datos del usuario loggeado (Nombre, Biografía, etc.) 
 $queryUser = mysqli_query($conexion, "SELECT * FROM tUsuario WHERE idUsuario = '$usuarioLoggeado'");
 $datosUsuario = mysqli_fetch_assoc($queryUser);
 
-// 4. 🔥 CORREGIDO: Traemos las publicaciones con LEFT JOIN para jalar el contenido de tMultimedia
+// 4. 🔥 CORREGIDO: Traemos las publicaciones haciendo un LEFT JOIN con tMultimedia y tUsuario
+// para obtener la multimedia del post y la foto de perfil + apodo real del autor de la publicación
 $queryPosts = "SELECT p.idPublicacion as id, 
                       p.idUsuario as author, 
                       p.contenidoTextoPub as text, 
                       p.fechaHoraPub as createdAt,
-                      m.urlMult as mediaDataUrl
+                      m.urlMult as mediaDataUrl,
+                      u.nombreUs as authorDisplayName,
+                      u.fotoPerfilUs as authorAvatar
                FROM tPublicacion p 
                LEFT JOIN tMultimedia m ON p.idMultimedia = m.idMultimedia
+               LEFT JOIN tUsuario u ON p.idUsuario = u.idUsuario
                ORDER BY p.fechaHoraPub DESC";
 $resultadoPosts = mysqli_query($conexion, $queryPosts);
 
@@ -33,7 +37,7 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     
     $currentPostId = $row['id'];
     
-    // 🔥 NUEVO: Identificamos dinámicamente si la cadena Base64 corresponde a una imagen o video
+    // Identificamos dinámicamente si la cadena Base64 corresponde a una imagen o video
     $row['mediaType'] = '';
     if (!empty($row['mediaDataUrl'])) {
         if (strpos($row['mediaDataUrl'], 'data:video/') !== false) {
@@ -51,15 +55,20 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     
     $likesArray = [];
     while ($likeRow = mysqli_fetch_assoc($resultadoLikes)) {
-        $likesArray[] = $likeRow['idUsuario']; // Almacenamos solo los strings de los nombres de usuario
+        $likesArray[] = $likeRow['idUsuario']; 
     }
     $row['likes'] = $likesArray;     
     
-    // Extraemos los comentarios de esta publicación desde MySQL usando tu DDLv2
-    $queryComentarios = "SELECT idUsuario as author, textoComent as text, fechaHoraComent as createdAt 
-                         FROM tComentario 
-                         WHERE idPublicacion = $currentPostId 
-                         ORDER BY fechaHoraComent ASC";
+    // 🔥 CORREGIDO: Extraemos los comentarios haciendo un LEFT JOIN con tUsuario 
+    // para recuperar la foto de perfil real de cada persona que comentó en este post
+    $queryComentarios = "SELECT c.idUsuario as author, 
+                                 c.textoComent as text, 
+                                 c.fechaHoraComent as createdAt,
+                                 u.fotoPerfilUs as commentAuthorAvatar
+                          FROM tComentario c
+                          LEFT JOIN tUsuario u ON c.idUsuario = u.idUsuario
+                          WHERE c.idPublicacion = $currentPostId 
+                          ORDER BY c.fechaHoraComent ASC";
     $resultadoComent = mysqli_query($conexion, $queryComentarios);
     
     $comentariosArray = [];
@@ -70,7 +79,6 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
         $comentariosArray[] = $comentRow;
     }
     
-    // Inyectamos los comentarios recuperados en vez de dejar el array vacío
     $row['comments'] = $comentariosArray;  
     $postsArray[] = $row;
 }
@@ -127,16 +135,33 @@ $jsonPosts = json_encode($postsArray);
       sessionStorage.setItem('mc_auth', 'true');
       sessionStorage.setItem('mc_user', '<?php echo $usuarioLoggeado; ?>');
       
-      // Se inyecta el JSON directo sin envolverlo en otra codificación de texto
-      const postsRaw = JSON.stringify(<?php echo $jsonPosts; ?>);
-      localStorage.setItem('mc_posts', postsRaw);
+      // Traemos la información estructurada de PHP
+      const postsBase = <?php echo $jsonPosts; ?>;
+      
+      // 🔥 RECORTE DE CADENAS BINARIAS: Limpiamos los avatares y multimedia pesados 
+      // para asegurar que el string JSON final mida apenas unos cuantos KB en el almacenamiento
+      const postsLigeros = postsBase.map(post => {
+          return {
+              ...post,
+              mediaDataUrl: '',
+              authorAvatar: '',
+              comments: Array.isArray(post.comments) ? post.comments.map(c => ({ ...c, commentAuthorAvatar: '' })) : []
+          };
+      });
+      
+      // 🔥 BLINDAJE ANTIBLOQUEO: Envolvemos en try/catch para que Opera jamás vuelva a colgar el renderizado
+      try {
+          localStorage.setItem('mc_posts', JSON.stringify(postsLigeros));
+      } catch (error) {
+          console.warn("⚠️ Nota: El LocalStorage está lleno, operando directamente desde la memoria de MySQL/PHP.");
+      }
       
       // Interceptamos de forma segura la función findUserByUsername de tu main.js
       if (window.MicroConnectApp && window.MicroConnectApp.userStore) {
         window.MicroConnectApp.userStore.findUserByUsername = function(username) {
           const userData = <?php echo $jsonUsuario; ?>;
           
-          // Si tu home.js busca al usuario activo, le regresamos los datos reales de la BD
+          // Caso 1: Si se están consultando los datos del usuario actualmente loggeado
           if (userData && userData.idUsuario === username) {
             return {
               username: userData.idUsuario,
@@ -146,7 +171,33 @@ $jsonPosts = json_encode($postsArray);
             };
           }
           
-          // Si busca a otros usuarios del feed, devolvemos un cascarón base para que la SPA no falle
+          // Caso 2: Buscamos si el usuario es autor de algún post usando el array en memoria de PHP
+          const postDelAutor = postsBase.find(p => p.author === username);
+          if (postDelAutor) {
+            return {
+              username: username,
+              displayName: postDelAutor.authorDisplayName || username,
+              bio: '',
+              avatarDataUrl: postDelAutor.authorAvatar || '' // Inyectamos su foto real de MySQL
+            };
+          }
+          
+          // Caso 3: Buscamos si el usuario es autor de algún comentario dentro de los posts
+          for (const post of postsBase) {
+            if (Array.isArray(post.comments)) {
+              const comentarioDelAutor = post.comments.find(c => c.author === username);
+              if (comentarioDelAutor) {
+                return {
+                  username: username,
+                  displayName: username,
+                  bio: '',
+                  avatarDataUrl: comentarioDelAutor.commentAuthorAvatar || '' // Inyectamos su foto real de los comentarios
+                };
+              }
+            }
+          }
+          
+          // Caso 4: Cascarón base de respaldo
           return { 
             username: username, 
             displayName: username,
@@ -154,6 +205,27 @@ $jsonPosts = json_encode($postsArray);
           };
         };
       }
+
+      // 🔥 RE-INYECCIÓN DIRECTA: Acoplamos el Base64 original de la multimedia directo al DOM
+      const originalRenderFeed = window.MicroConnectHomeShared.renderFeed;
+      window.MicroConnectHomeShared.renderFeed = function(container, currentUser) {
+          // Ejecutamos el flujo de dibujado de tarjetas normal de la SPA
+          originalRenderFeed(container, currentUser);
+          
+          // Recorremos las tarjetas inyectadas en el HTML y les devolvemos la imagen o video real
+          postsBase.forEach(post => {
+              if (post.mediaDataUrl) {
+                  const tarjeta = container.querySelector(`[data-post-id="${post.id}"]`);
+                  if (tarjeta) {
+                      const imgElement = tarjeta.querySelector('img.w-full');
+                      const videoElement = tarjeta.querySelector('video.w-full');
+                      
+                      if (imgElement) imgElement.src = post.mediaDataUrl;
+                      if (videoElement) videoElement.src = post.mediaDataUrl;
+                  }
+              }
+          });
+      };
     })();
   </script>
 
