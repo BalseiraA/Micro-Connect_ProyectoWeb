@@ -512,3 +512,149 @@ body.login-bg main {
     padding-right: 0.75rem;
   }
 }
+
+/* =====================
+   LOGIN / REGISTRO - MODO OSCURO
+   ===================== */
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body.login-bg,
+html.dark body.register-bg {
+  background:
+    radial-gradient(circle at 18% 20%, rgba(37, 99, 235, 0.20), transparent 34%),
+    radial-gradient(circle at 82% 25%, rgba(124, 58, 237, 0.18), transparent 32%),
+    radial-gradient(circle at 52% 82%, rgba(14, 165, 233, 0.14), transparent 38%),
+    linear-gradient(135deg, #020617 0%, #0f172a 48%, #111827 100%) !important;
+  color: var(--text-main) !important;
+}
+
+html.dark body.login-bg main,
+html.dark body.register-bg main {
+  background: transparent !important;
+}
+
+html.dark .liquid-bg::before,
+html.dark .liquid-bg::after,
+html.dark .liquid-orb {
+  opacity: 0.55;
+  mix-blend-mode: screen;
+}
+
+html.dark .login-card,
+html.dark .register-card {
+  background: rgba(15, 23, 42, 0.94) !important;
+  color: var(--text-main) !important;
+  border-color: rgba(51, 65, 85, 0.95) !important;
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+html.dark .login-card h1,
+html.dark .login-card label,
+html.dark .register-card h1,
+html.dark .register-card label {
+  color: var(--text-main) !important;
+}
+
+html.dark .login-card .text-slate-500,
+html.dark .login-card .text-slate-600,
+html.dark .register-card .text-slate-500,
+html.dark .register-card .text-slate-600 {
+  color: var(--text-muted) !important;
+}
+
+html.dark .login-card input[type="text"],
+html.dark .login-card input[type="password"],
+html.dark .register-card input[type="text"],
+html.dark .register-card input[type="password"],
+html.dark .register-card input[type="email"],
+html.dark .register-card input[type="date"],
+html.dark .register-card textarea {
+  background-color: var(--bg-soft) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-main) !important;
+  caret-color: var(--text-main);
+}
+
+html.dark .login-card input::placeholder,
+html.dark .register-card input::placeholder,
+html.dark .register-card textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+html.dark .login-card input:-webkit-autofill,
+html.dark .register-card input:-webkit-autofill {
+  -webkit-text-fill-color: var(--text-main) !important;
+  caret-color: var(--text-main);
+  box-shadow: 0 0 0 1000px var(--bg-soft) inset !important;
+  border-color: var(--border-strong) !important;
+}
+
+html.dark .password-toggle-btn,
+html.dark .register-password-toggle,
+html.dark .register-link-btn {
+  color: #93c5fd !important;
+  background: transparent !important;
+}
+
+html.dark .password-toggle-btn:hover,
+html.dark .register-password-toggle:hover,
+html.dark .register-link-btn:hover {
+  color: #bfdbfe !important;
+  background: rgba(59, 130, 246, 0.16) !important;
+}
+
+html.dark #backToLogin {
+  background-color: var(--bg-soft) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-main) !important;
+}
+
+html.dark #backToLogin:hover {
+  background-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+html.dark .password-meter {
+  background: #334155 !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35) !important;
+}
+
+html.dark .register-photo-area {
+  background: rgba(2, 6, 23, 0.55) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-main) !important;
+}
+
+html.dark .profile-photo-frame {
+  background: #020617 !important;
+  border-color: var(--border-strong) !important;
+}
+
+html.dark .login-card .bg-red-50,
+html.dark .register-card .bg-red-50 {
+  background-color: rgba(127, 29, 29, 0.28) !important;
+  border-color: rgba(248, 113, 113, 0.45) !important;
+  color: #fecaca !important;
+}
+
+html.dark .register-card .bg-green-50 {
+  background-color: rgba(20, 83, 45, 0.28) !important;
+  border-color: rgba(74, 222, 128, 0.45) !important;
+  color: #bbf7d0 !important;
+}
+
+html.dark .login-card .text-red-600,
+html.dark .register-card .text-red-600,
+html.dark .login-card .text-red-700,
+html.dark .register-card .text-red-700 {
+  color: #fca5a5 !important;
+}
+
+html.dark .register-card .text-green-700 {
+  color: #86efac !important;
+}
