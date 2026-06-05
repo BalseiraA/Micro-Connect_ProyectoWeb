@@ -1,8 +1,35 @@
 <?php
-// 1. Validar sesión en el servidor local 
+// 1. Validar sesión en el servidor local y evitar cache del navegador
 session_start();
+
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+header("Expires: Sat, 01 Jan 2000 00:00:00 GMT");
+
+if (isset($_GET['logout'])) {
+    $_SESSION = [];
+
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(
+            session_name(),
+            '',
+            time() - 42000,
+            $params["path"],
+            $params["domain"],
+            $params["secure"],
+            $params["httponly"]
+        );
+    }
+
+    session_destroy();
+    header("Location: ../index.php", true, 303);
+    exit();
+}
+
 if (!isset($_SESSION['usuario'])) {
-    header("Location: ../index.php");
+    header("Location: ../index.php", true, 303);
     exit();
 }
 
@@ -235,6 +262,42 @@ $jsonPosts = json_encode($postsArray);
 
       acoplarInterceptores();
       document.addEventListener('DOMContentLoaded', acoplarInterceptores);
+    })();
+  </script>
+
+  <script>
+    (function() {
+      const SESSION_USER_KEY = 'mc_user';
+      const SESSION_AUTH_KEY = 'mc_auth';
+      const SESSION_LOGIN_TIME_KEY = 'mc_login_at';
+
+      function hasClientSession() {
+        return sessionStorage.getItem(SESSION_AUTH_KEY) === 'true' &&
+          !!sessionStorage.getItem(SESSION_USER_KEY);
+      }
+
+      function clearClientSession() {
+        sessionStorage.removeItem(SESSION_USER_KEY);
+        sessionStorage.removeItem(SESSION_AUTH_KEY);
+        sessionStorage.removeItem(SESSION_LOGIN_TIME_KEY);
+      }
+
+      window.addEventListener('pageshow', function() {
+        if (!hasClientSession()) {
+          window.location.replace('../index.php');
+        }
+      });
+
+      document.addEventListener('click', function(event) {
+        const logoutBtn = event.target.closest('#logoutBtn');
+        if (!logoutBtn) return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        clearClientSession();
+        window.location.replace('home.php?logout=1');
+      }, true);
     })();
   </script>
 

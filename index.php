@@ -1,17 +1,30 @@
 <?php
-// 1. Conectamos con la base de datos (están en la misma carpeta raíz)
+// 1. Iniciamos sesión y evitamos que el navegador guarde esta pantalla en cache
+session_start();
+
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+header("Expires: Sat, 01 Jan 2000 00:00:00 GMT");
+
+if (isset($_SESSION['usuario']) && $_SERVER["REQUEST_METHOD"] !== "POST") {
+    header("Location: ./views/home.php", true, 303);
+    exit();
+}
+
+// 2. Conectamos con la base de datos (están en la misma carpeta raíz)
 include("conexion.php");
 
 $mensajeError = "";
 
-// 2. Detectamos si el usuario envió el formulario mediante método POST
+// 3. Detectamos si el usuario envió el formulario mediante método POST
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     // Sanitizamos el input del usuario para prevenir inyección SQL
     $idUsuario = mysqli_real_escape_string($conexion, $_POST['username']);
     $passwordPlain = $_POST['password'];
 
-    // 3. Buscamos al usuario en la tabla tUsuario
+    // 4. Buscamos al usuario en la tabla tUsuario
     $consulta = "SELECT idUsuario, contraseñaUs FROM tUsuario WHERE idUsuario = '$idUsuario'";
     $resultado = mysqli_query($conexion, $consulta);
 
@@ -19,15 +32,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Si el usuario existe, extraemos sus valores
         $usuario = mysqli_fetch_assoc($resultado);
         
-        // 4. Verificamos la contraseña ingresada contra el Hash de Bcrypt guardado
+        // 5. Verificamos la contraseña ingresada contra el Hash de Bcrypt guardado
         if (password_verify($passwordPlain, $usuario['contraseñaUs'])) {
             
-            // ¡Credenciales correctas! Iniciamos la sesión en el servidor
-            session_start();
+            // ¡Credenciales correctas! Regeneramos el ID y guardamos la sesión en el servidor
+            session_regenerate_id(true);
             $_SESSION['usuario'] = $usuario['idUsuario'];
             
             // Redirigimos al Home dinámico que ya tienes dentro de views/
-            header("Location: ./views/home.php");
+            header("Location: ./views/home.php", true, 303);
             exit();
             
         } else {

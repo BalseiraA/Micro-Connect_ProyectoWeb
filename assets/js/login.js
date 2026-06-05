@@ -47,6 +47,11 @@
       !!document.getElementById('registerForm');
   }
 
+  function isHomePage() {
+    return normalizePath(window.location.pathname).endsWith('/home.php') ||
+      !!document.getElementById('mainContent');
+  }
+
   function getUserStore() {
     return window.MicroConnectApp && window.MicroConnectApp.userStore
       ? window.MicroConnectApp.userStore
@@ -73,9 +78,23 @@
   }
 
   function protectNavigation() {
-    // MODIFICADO: Delegamos la seguridad y las redirecciones de sesión seguras a PHP 
-    // en el backend para evitar bucles infinitos con el almacenamiento local.
-    return true; 
+    const authenticated = isAuthenticated();
+
+    // Si ya hay sesión activa y el usuario intenta regresar al login con las flechas,
+    // lo regresamos inmediatamente al home.
+    if (isLoginPage() && authenticated) {
+      window.location.replace(getHomePath());
+      return false;
+    }
+
+    // Si se cerró sesión y el navegador intenta mostrar home.php desde cache/BFCache,
+    // lo regresamos al login.
+    if (isHomePage() && !authenticated) {
+      window.location.replace(getLoginPath());
+      return false;
+    }
+
+    return true;
   }
 
   function showFieldError(input, errorEl, message = '') {
@@ -218,7 +237,7 @@
       // 2. Si las validaciones de formato pasan con éxito, limpiamos errores
       setLoginError('');
 
-      // 3. MODIFICADO: Forzamos el envío real del formulario para que viaje al backend dinámico en index.php
+      // 3. Forzamos el envío real del formulario para que viaje al backend dinámico en index.php
       form.submit();
     });
   }
