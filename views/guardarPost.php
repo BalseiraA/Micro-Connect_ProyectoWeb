@@ -12,7 +12,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     $idMultimediaSinc = "NULL"; // Por defecto, si no hay archivo, se guarda como NULL
 
-    // 🔥 NUEVO: Procesamos el archivo multimedia si viene en la petición
+    // Procesamos el archivo multimedia si viene en la petición (enviado por home.js)
     if (isset($_FILES['postMedia']) && $_FILES['postMedia']['error'] == UPLOAD_ERR_OK) {
         $fileTmpPath = $_FILES['postMedia']['tmp_name'];
         $fileType = $_FILES['postMedia']['type'];
@@ -31,7 +31,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // 2. Insertamos en tPublicacion amarrando el idMultimedia que acabamos de generar
+    // 2. 🔥 MATCH PERFECTO CON TU DDL: contenidoTextoPub y fechaHoraPub
     $query = "INSERT INTO tPublicacion (contenidoTextoPub, fechaHoraPub, idUsuario, idMultimedia) 
               VALUES ('$texto', '$fechaHora', '$idUsuario', $idMultimediaSinc)";
 

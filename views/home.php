@@ -15,8 +15,7 @@ include("../conexion.php");
 $queryUser = mysqli_query($conexion, "SELECT * FROM tUsuario WHERE idUsuario = '$usuarioLoggeado'");
 $datosUsuario = mysqli_fetch_assoc($queryUser);
 
-// 4. 🔥 CORREGIDO: Traemos las publicaciones haciendo un LEFT JOIN con tMultimedia y tUsuario
-// para obtener la multimedia del post y la foto de perfil + apodo real del autor de la publicación
+// 4. MATCH PERFECTO CON TU DDL: Seleccionamos contenidoTextoPub y fechaHoraPub
 $queryPosts = "SELECT p.idPublicacion as id, 
                       p.idUsuario as author, 
                       p.contenidoTextoPub as text, 
@@ -32,9 +31,7 @@ $resultadoPosts = mysqli_query($conexion, $queryPosts);
 
 $postsArray = [];
 while ($row = mysqli_fetch_assoc($resultadoPosts)) {
-    // Forzamos que el ID sea tratado como un número entero real para que encaje con tu DDL
     $row['id'] = (int)$row['id'];
-    
     $currentPostId = $row['id'];
     
     // Identificamos dinámicamente si la cadena Base64 corresponde a una imagen o video
@@ -46,7 +43,7 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
             $row['mediaType'] = 'image';
         }
     } else {
-        $row['mediaDataUrl'] = ''; // Aseguramos un string vacío para el LocalStorage si no hay contenido
+        $row['mediaDataUrl'] = ''; 
     }
     
     // Traer los usuarios que le dieron like a esta publicación desde MySQL
@@ -59,8 +56,7 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     }
     $row['likes'] = $likesArray;     
     
-    // 🔥 CORREGIDO: Extraemos los comentarios haciendo un LEFT JOIN con tUsuario 
-    // para recuperar la foto de perfil real de cada persona que comentó en este post
+    // Extraemos los comentarios haciendo un LEFT JOIN con tUsuario 
     $queryComentarios = "SELECT c.idUsuario as author, 
                                  c.textoComent as text, 
                                  c.fechaHoraComent as createdAt,
@@ -73,7 +69,6 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     
     $comentariosArray = [];
     while ($comentRow = mysqli_fetch_assoc($resultadoComent)) {
-        // Asignamos un ID temporal al comentario para que el DOM de home.js lo maneje sin romperse
         $comentRow['id'] = "bd_" . rand(1000, 9999);
         $comentRow['replies'] = []; 
         $comentariosArray[] = $comentRow;
@@ -93,8 +88,8 @@ $jsonPosts = json_encode($postsArray);
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Micro-Connect | Inicio</title>
-  <link rel="stylesheet" href="../assets/css/tailwind.css" />
-  <link rel="stylesheet" href="../assets/css/styles.css" />
+  <link class="styles" rel="stylesheet" href="../assets/css/tailwind.css" />
+  <link class="styles" rel="stylesheet" href="../assets/css/styles.css" />
   <style>
     .active-tab { background-color: rgb(226 232 240); color: rgb(15 23 42); font-weight: 600; }
     .dark .active-tab { background-color: rgb(39 39 42); color: rgb(248 250 252); }
@@ -131,37 +126,36 @@ $jsonPosts = json_encode($postsArray);
 
   <script>
     (function() {
-      // Sincronizamos las llaves de sesión locales que tus JS van a validar
       sessionStorage.setItem('mc_auth', 'true');
       sessionStorage.setItem('mc_user', '<?php echo $usuarioLoggeado; ?>');
       
-      // Traemos la información estructurada de PHP
       const postsBase = <?php echo $jsonPosts; ?>;
       
-      // 🔥 RECORTE DE CADENAS BINARIAS: Limpiamos los avatares y multimedia pesados 
-      // para asegurar que el string JSON final mida apenas unos cuantos KB en el almacenamiento
       const postsLigeros = postsBase.map(post => {
           return {
-              ...post,
-              mediaDataUrl: '',
-              authorAvatar: '',
-              comments: Array.isArray(post.comments) ? post.comments.map(c => ({ ...c, commentAuthorAvatar: '' })) : []
+              id: post.id,
+              author: post.author,
+              text: post.text,
+              createdAt: post.createdAt,
+              mediaType: post.mediaType,
+              likes: post.likes || [],
+              comments: post.comments || [],
+              authorDisplayName: post.authorDisplayName || post.author,
+              mediaDataUrl: '', 
+              authorAvatar: ''
           };
       });
       
-      // 🔥 BLINDAJE ANTIBLOQUEO: Envolvemos en try/catch para que Opera jamás vuelva a colgar el renderizado
       try {
           localStorage.setItem('mc_posts', JSON.stringify(postsLigeros));
       } catch (error) {
-          console.warn("⚠️ Nota: El LocalStorage está lleno, operando directamente desde la memoria de MySQL/PHP.");
+          console.warn("⚠️ LocalStorage lleno.");
       }
       
-      // Interceptamos de forma segura la función findUserByUsername de tu main.js
       if (window.MicroConnectApp && window.MicroConnectApp.userStore) {
         window.MicroConnectApp.userStore.findUserByUsername = function(username) {
           const userData = <?php echo $jsonUsuario; ?>;
           
-          // Caso 1: Si se están consultando los datos del usuario actualmente loggeado
           if (userData && userData.idUsuario === username) {
             return {
               username: userData.idUsuario,
@@ -171,18 +165,16 @@ $jsonPosts = json_encode($postsArray);
             };
           }
           
-          // Caso 2: Buscamos si el usuario es autor de algún post usando el array en memoria de PHP
           const postDelAutor = postsBase.find(p => p.author === username);
           if (postDelAutor) {
             return {
               username: username,
               displayName: postDelAutor.authorDisplayName || username,
               bio: '',
-              avatarDataUrl: postDelAutor.authorAvatar || '' // Inyectamos su foto real de MySQL
+              avatarDataUrl: postDelAutor.authorAvatar || ''
             };
           }
           
-          // Caso 3: Buscamos si el usuario es autor de algún comentario dentro de los posts
           for (const post of postsBase) {
             if (Array.isArray(post.comments)) {
               const comentarioDelAutor = post.comments.find(c => c.author === username);
@@ -191,41 +183,58 @@ $jsonPosts = json_encode($postsArray);
                   username: username,
                   displayName: username,
                   bio: '',
-                  avatarDataUrl: comentarioDelAutor.commentAuthorAvatar || '' // Inyectamos su foto real de los comentarios
+                  avatarDataUrl: comentarioDelAutor.commentAuthorAvatar || ''
                 };
               }
             }
           }
           
-          // Caso 4: Cascarón base de respaldo
-          return { 
-            username: username, 
-            displayName: username,
-            avatarDataUrl: ''
-          };
+          return { username, displayName: username, avatarDataUrl: '' };
         };
       }
 
-      // 🔥 RE-INYECCIÓN DIRECTA: Acoplamos el Base64 original de la multimedia directo al DOM
-      const originalRenderFeed = window.MicroConnectHomeShared.renderFeed;
-      window.MicroConnectHomeShared.renderFeed = function(container, currentUser) {
-          // Ejecutamos el flujo de dibujado de tarjetas normal de la SPA
-          originalRenderFeed(container, currentUser);
-          
-          // Recorremos las tarjetas inyectadas en el HTML y les devolvemos la imagen o video real
-          postsBase.forEach(post => {
-              if (post.mediaDataUrl) {
-                  const tarjeta = container.querySelector(`[data-post-id="${post.id}"]`);
-                  if (tarjeta) {
-                      const imgElement = tarjeta.querySelector('img.w-full');
-                      const videoElement = tarjeta.querySelector('video.w-full');
-                      
-                      if (imgElement) imgElement.src = post.mediaDataUrl;
-                      if (videoElement) videoElement.src = post.mediaDataUrl;
-                  }
-              }
-          });
+      // Interceptor pasivo: No fuerza redibujados manuales, evita borrar la caja de creación
+      const acoplarInterceptores = () => {
+          if (window.MicroConnectHomeShared && window.MicroConnectHomeShared.renderFeed) {
+              const originalRenderFeed = window.MicroConnectHomeShared.renderFeed;
+              
+              window.MicroConnectHomeShared.renderFeed = function(container, currentUser) {
+                  // Permitimos que la SPA monte la caja de creación y las publicaciones de forma nativa
+                  originalRenderFeed(container, currentUser);
+                  
+                  // Una vez renderizado el DOM original, le acoplamos las imágenes correspondientes
+                  postsBase.forEach(post => {
+                      const tarjeta = container.querySelector(`[data-post-id="${post.id}"]`);
+                      if (tarjeta) {
+                          if (post.mediaDataUrl) {
+                              const imgElement = tarjeta.querySelector('img.w-full');
+                              const videoElement = tarjeta.querySelector('video.w-full');
+                              if (imgElement) imgElement.src = post.mediaDataUrl;
+                              if (videoElement) videoElement.src = post.mediaDataUrl;
+                          }
+                          
+                          if (post.authorAvatar) {
+                              const avatarContenedor = tarjeta.querySelector('.flex.items-center.gap-3');
+                              if (avatarContenedor) {
+                                  const imgAvatar = avatarContenedor.querySelector('img');
+                                  if (imgAvatar) {
+                                      imgAvatar.src = post.authorAvatar;
+                                  } else {
+                                      const circuloInicial = avatarContenedor.querySelector('div.rounded-full');
+                                      if (circuloInicial) {
+                                          circuloInicial.outerHTML = `<img src="${post.authorAvatar}" class="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700" />`;
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  });
+              };
+          }
       };
+
+      acoplarInterceptores();
+      document.addEventListener('DOMContentLoaded', acoplarInterceptores);
     })();
   </script>
 
