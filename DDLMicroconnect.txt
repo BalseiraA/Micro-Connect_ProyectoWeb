@@ -1,127 +1,96 @@
-# CREATE DATABASE microconnect;
-# USE microconnect;
+# DROP DATABASE IF EXISTS microconnect;
 
-# tUsuario
+/*
+CREATE DATABASE microconnect COLLATE = utf8mb4_unicode_ci;
+USE microconnect;
+*/
+
+# ─── TABLA: tUsuario ──────────────────────────────────────────────────
 CREATE TABLE tUsuario (
-	idUsuario VARCHAR(20) PRIMARY KEY COMMENT 'Identificador único del usuario',
+    idUsuario VARCHAR(20) PRIMARY KEY COMMENT 'Identificador único del usuario',
     nombreUs VARCHAR(50) NOT NULL COMMENT 'Nombre del usuario',
     biografiaUs VARCHAR(300) NULL COMMENT 'Biografía del usuario',
-    fotoPerfilUs VARCHAR(500) NULL COMMENT 'Foto de perfil del usuario',
+    fotoPerfilUs MEDIUMTEXT NULL COMMENT 'Foto de perfil del usuario',
     correoElectronicoUs VARCHAR(100) NOT NULL COMMENT 'Correo electrónico del usuario',
     contraseñaUs VARCHAR(255) NOT NULL COMMENT 'Contraseña del usuario',
     fechaCreacion DATE NOT NULL COMMENT 'Fecha de creación del usuario',
-    fechaNacimiento DATE NOT NULL COMMENT 'Feha de nacimiento del usuario'
-) ENGINE = INNODB
-COLLATE = utf8mb4_unicode_ci
-COMMENT 'Tabla que contiene a todos los usuarios del sitio';
+    fechaNacimiento DATE NOT NULL COMMENT 'Fecha de nacimiento del usuario'
+) ENGINE = INNODB COMMENT 'Tabla que contiene a todos los usuarios del sitio';
 
-# tMultimedia
+# ─── TABLA: tMultimedia ───────────────────────────────────────────────
 CREATE TABLE tMultimedia (
-	idMultimedia INT PRIMARY KEY AUTO_INCREMENT COMMENT 'Identificador único del contenido multimedia',
-    urlMult VARCHAR(500) UNIQUE NOT NULL COMMENT 'Url que contiene a la multimedia'
-) ENGINE = INNODB
-COLLATE = utf8mb4_unicode_ci
-COMMENT 'Tabla que contiene a todos los contenidos multimedia del sitio';
+    idMultimedia INT PRIMARY KEY AUTO_INCREMENT COMMENT 'Identificador único del contenido multimedia',
+    urlMult MEDIUMTEXT UNIQUE NOT NULL COMMENT 'Url que contiene a la multimedia'
+) ENGINE = INNODB COMMENT 'Tabla que contiene a todos los contenidos multimedia del sitio';
 
-# tPublicacion 
+# ─── TABLA: tPublicacion ──────────────────────────────────────────────
 CREATE TABLE tPublicacion (
-	idPublicacion INT PRIMARY KEY AUTO_INCREMENT COMMENT 'Identificador único de la publicación',
+    idPublicacion INT PRIMARY KEY AUTO_INCREMENT COMMENT 'Identificador único de la publicación',
     contenidoTextoPub VARCHAR(300) NOT NULL COMMENT 'Contenido de texto de la publicación',
     fechaHoraPub DATETIME NOT NULL COMMENT 'Fecha y hora en que la publicación fue hecha',
     idUsuario VARCHAR(20) NOT NULL COMMENT 'Usuario que creó la publicación',
     idMultimedia INT NULL COMMENT 'Multimedia de la publicación',
-CONSTRAINT fkUsuarioPublicacion
-	FOREIGN KEY (idUsuario)
-	REFERENCES tUsuario(idUsuario)
-	ON UPDATE CASCADE
-	ON DELETE CASCADE,
-CONSTRAINT fkMultimediaPublicacion 
-	FOREIGN KEY (idMultimedia)
-    REFERENCES tMultimedia(idMultimedia)
-    ON UPDATE CASCADE
-    ON DELETE CASCADE
-) ENGINE = INNODB
-COLLATE = utf8mb4_unicode_ci
-COMMENT 'Tabla que contiene a todas las publicaciones del sitio';
+    CONSTRAINT fkUsuarioPublicacion
+        FOREIGN KEY (idUsuario) REFERENCES tUsuario(idUsuario)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fkMultimediaPublicacion 
+        FOREIGN KEY (idMultimedia) REFERENCES tMultimedia(idMultimedia)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE = INNODB COMMENT 'Tabla que contiene a todas las publicaciones del sitio';
 
-# tSeguidor
+# ─── TABLA: tSeguidor ─────────────────────────────────────────────────
 CREATE TABLE tSeguidor (
-	idSeguidor VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario que sigue',
-    idSeguido VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario seguido',
+    idSeguidor VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario que sigue',
+    idFollowed VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario seguido',
     fechaHoraSeguido DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT 'Fecha y hora en que se empezó a seguir al usuario',
-    PRIMARY KEY (idSeguidor, idSeguido),
+    PRIMARY KEY (idSeguidor, idFollowed),
     CONSTRAINT fkSeguidorUsuario
-		FOREIGN KEY (idSeguidor)
-        REFERENCES tUsuario(idUsuario)
-        ON UPDATE CASCADE
-        ON DELETE CASCADE,
-	CONSTRAINT fkSeguidoUsuario
-        FOREIGN KEY (idSeguido)
-        REFERENCES tUsuario(idUsuario)
-        ON UPDATE CASCADE
-        ON DELETE CASCADE
-) ENGINE = INNODB
-COLLATE = utf8mb4_unicode_ci
-COMMENT 'Tabla que contiene a todos los usuarios que siguen y son seguidos en el sitio';
+        FOREIGN KEY (idSeguidor) REFERENCES tUsuario(idUsuario)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fkSeguidoUsuario
+        FOREIGN KEY (idFollowed) REFERENCES tUsuario(idUsuario)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE = INNODB COMMENT 'Tabla que contiene a todos los usuarios que siguen y son seguidos en el sitio';
     
-# tComentario
+# ─── TABLA: tComentario (CORREGIDA) ───────────────────────────────────
 CREATE TABLE tComentario (
-	idUsuario VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario que comentó',
+    idComentario INT AUTO_INCREMENT PRIMARY KEY COMMENT 'Identificador único del comentario realizado', 
+    idUsuario VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario que comentó',
     idPublicacion INT NOT NULL COMMENT 'Identificador de la publicación que fue comentada',
     textoComent VARCHAR(200) NOT NULL COMMENT 'Texto del comentario',
     fechaHoraComent DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT 'Fecha y hora en que se realizó el comentario',
-    PRIMARY KEY (idUsuario, idPublicacion),
     CONSTRAINT fkUsuarioComentario
-		FOREIGN KEY (idUsuario)
-        REFERENCES tUsuario(idUsuario)
-        ON UPDATE CASCADE
-        ON DELETE CASCADE,
-	CONSTRAINT fkPublicacionComentario
-		FOREIGN KEY (idPublicacion)
-        REFERENCES tPublicacion(idPublicacion)
-        ON UPDATE CASCADE
-        ON DELETE CASCADE
-) ENGINE = INNODB
-COLLATE = utf8mb4_unicode_ci
-COMMENT 'Tabla que contiene todos los comentarios de una publicación';
+        FOREIGN KEY (idUsuario) REFERENCES tUsuario(idUsuario)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fkPublicacionComentario
+        FOREIGN KEY (idPublicacion) REFERENCES tPublicacion(idPublicacion)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE = INNODB COMMENT 'Tabla que contiene todos los comentarios de una publicación';
 
-# tLike
+# ─── TABLA: tLikePublicacion ──────────────────────────────────────────
 CREATE TABLE tLikePublicacion (
-	idUsuario VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario que dió like a la publicación',
+    idUsuario VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario que dio like a la publicación',
     idPublicacion INT NOT NULL COMMENT 'Identificador de la publicación que recibió el like',
-    fechaHoraLikePub DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT 'Fecha y hora en que se dió like a la publicación',
+    fechaHoraLikePub DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT 'Fecha y hora en que se dio like a la publicación',
     PRIMARY KEY (idUsuario, idPublicacion),
     CONSTRAINT fkUsuarioLike
-		FOREIGN KEY (idUsuario)
-        REFERENCES tUsuario(idUsuario)
-        ON UPDATE CASCADE
-        ON DELETE CASCADE,
-	CONSTRAINT fkPublicacionLike
-		FOREIGN KEY (idPublicacion)
-        REFERENCES tPublicacion(idPublicacion)
-        ON UPDATE CASCADE
-        ON DELETE CASCADE
-) ENGINE = INNODB
-COLLATE = utf8mb4_unicode_ci
-COMMENT 'Tabla que contiene todos los likes a publicaciones';
+        FOREIGN KEY (idUsuario) REFERENCES tUsuario(idUsuario)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fkPublicacionLike
+        FOREIGN KEY (idPublicacion) REFERENCES tPublicacion(idPublicacion)
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE = INNODB COMMENT 'Tabla que contiene todos los likes a publicaciones';
 
-# tLikeComentario
+# ─── TABLA: tLikeComentario ───────────────────────────────────────────
 CREATE TABLE tLikeComentario (
-    idUsuario VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario proveniente de tUsuario que dió like al comentario',
-    idUsuarioComent VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario proveniente de tComentario que dió like al comentario',
-    idPublicacion INT NOT NULL COMMENT 'Identificador de la publicación que se comentó',
-    fechaHoraLikeComent DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT 'Fecha y hora del like en que se dió like al comentario',
-    PRIMARY KEY (idUsuario, idUsuarioComent, idPublicacion),
+    idUsuario VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario que dió el like',
+    idComentario INT NOT NULL COMMENT 'Identificador del comentario que recibió el like', -- ─── Apuntamos directo al INT autoincremental
+    fechaHoraLikeComent DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (idUsuario, idComentario),
     CONSTRAINT fkUsuarioDaLikeComent
-        FOREIGN KEY (idUsuario)
-        REFERENCES tUsuario(idUsuario)
-        ON UPDATE CASCADE 
-        ON DELETE CASCADE,
+        FOREIGN KEY (idUsuario) REFERENCES tUsuario(idUsuario)
+        ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fkComentarioObjetivo
-        FOREIGN KEY (idUsuarioComent, idPublicacion)
-        REFERENCES tComentario(idUsuario, idPublicacion)
-        ON UPDATE CASCADE 
-        ON DELETE CASCADE
-) ENGINE = INNODB
-COLLATE = utf8mb4_unicode_ci
-COMMENT = 'Tabla que contiene todos los likes a comentarios en publicaciones';
+        FOREIGN KEY (idComentario) REFERENCES tComentario(idComentario) 
+        ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE = INNODB COMMENT 'Tabla que contiene todos los likes a comentarios';
