@@ -81,9 +81,12 @@
       body: formData
     })
     .then(res => res.text())
-    .then(idReal => {
-      if (idReal !== "error") {
-        const idNumerico = parseInt(idReal, 10);
+    .then(respuesta => {
+      // Intentamos convertir la respuesta en un número entero
+      const idNumerico = parseInt(respuesta, 10);
+      
+      // Si es un número válido mayor a 0, significa que MySQL guardó el dato con éxito
+      if (!isNaN(idNumerico) && idNumerico > 0) {
         post.id = idNumerico;
         
         const postsActualizados = getPosts();
@@ -97,9 +100,12 @@
         if (tarjetaPost) {
           tarjetaPost.dataset.postId = idNumerico;
         }
+      } else {
+        // Si no es un número, significa que PHP nos devolvió el error exacto de MySQL
+        console.error('❌ Error de MySQL al intentar guardar:', respuesta);
       }
     })
-    .catch(err => console.error('Error al sincronizar publicación con PHP:', err));
+    .catch(err => console.error('❌ Error de red al comunicar con PHP:', err));
 
     return post;
   }
