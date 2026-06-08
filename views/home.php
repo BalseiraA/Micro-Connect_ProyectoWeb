@@ -84,24 +84,58 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     $row['likes'] = $likesArray;     
     
     // Extraemos los comentarios haciendo un LEFT JOIN con tUsuario 
-    $queryComentarios = "SELECT c.idUsuario as author, 
-                                 c.textoComent as text, 
-                                 c.fechaHoraComent as createdAt,
-                                 u.fotoPerfilUs as commentAuthorAvatar
+    // AGREGADO: c.idComentario (id) y c.idComentarioPadre (parentId)
+    $queryComentarios = "SELECT c.idComentario as id, 
+                                c.idComentarioPadre as parentId,
+                                c.idUsuario as author, 
+                                c.textoComent as text, 
+                                c.fechaHoraComent as createdAt,
+                                u.fotoPerfilUs as commentAuthorAvatar
                           FROM tComentario c
                           LEFT JOIN tUsuario u ON c.idUsuario = u.idUsuario
                           WHERE c.idPublicacion = $currentPostId 
                           ORDER BY c.fechaHoraComent ASC";
     $resultadoComent = mysqli_query($conexion, $queryComentarios);
     
-    $comentariosArray = [];
+    $comentariosPrincipales = [];
+    $respuestas = [];
+
     while ($comentRow = mysqli_fetch_assoc($resultadoComent)) {
-        $comentRow['id'] = "bd_" . rand(1000, 9999);
-        $comentRow['replies'] = []; 
-        $comentariosArray[] = $comentRow;
+        // Conservamos el ID REAL de la base de datos
+        $comentRow['id'] = (int)$comentRow['id'];
+        $commentId = $comentRow['id'];
+        
+        // Traemos los usuarios que le dieron like a ESTE comentario
+        $queryLikesComent = "SELECT idUsuario FROM tLikeComentario WHERE idComentario = $commentId";
+        $resultadoLikesComent = mysqli_query($conexion, $queryLikesComent);
+        $likesComentArray = [];
+        while ($likeRow = mysqli_fetch_assoc($resultadoLikesComent)) {
+            $likesComentArray[] = $likeRow['idUsuario'];
+        }
+        $comentRow['likes'] = $likesComentArray; 
+        
+        $comentRow['replies'] = []; // Preparamos el array de respuestas
+        
+        // Clasificamos si es comentario principal o respuesta
+        if (is_null($comentRow['parentId'])) {
+            // Lo guardamos usando su ID como clave para buscarlo rápido después
+            $comentariosPrincipales[$commentId] = $comentRow;
+        } else {
+            // Va al arreglo temporal de respuestas
+            $respuestas[] = $comentRow;
+        }
     }
     
-    $row['comments'] = $comentariosArray;  
+    // Anidamos las respuestas dentro de su respectivo comentario padre
+    foreach ($respuestas as $respuesta) {
+        $idPadre = $respuesta['parentId'];
+        if (isset($comentariosPrincipales[$idPadre])) {
+            $comentariosPrincipales[$idPadre]['replies'][] = $respuesta;
+        }
+    }
+    
+    // Convertimos el diccionario a un array simple para el JSON
+    $row['comments'] = array_values($comentariosPrincipales);
     $postsArray[] = $row;
 }
 
