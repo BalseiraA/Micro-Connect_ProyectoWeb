@@ -1,0 +1,18 @@
+/*
+Optimización de LocalStorage
+
+Necesaria porque en la extracción de views/home.php e inyección a un <script> vienen los avatares de los usuarios 
+en los comentarios en formato Base64, al intentar guardarlas en localStorage explota la capacidad y se interrumpe la 
+conexión a la base de datos.
+
+Para solucionar ejecutar: 
+-- 1. Apagamos el modo seguro temporalmente
+SET SQL_SAFE_UPDATES = 0;
+
+-- 2. Vaciamos las tablas problemáticas (la tubería tapada)
+DELETE FROM tPublicacion;
+DELETE FROM tMultimedia;
+
+-- 3. Volvemos a encender el modo seguro
+SET SQL_SAFE_UPDATES = 1;
+*/

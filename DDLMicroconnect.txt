@@ -94,3 +94,16 @@ CREATE TABLE tLikeComentario (
         FOREIGN KEY (idComentario) REFERENCES tComentario(idComentario) 
         ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE = INNODB COMMENT 'Tabla que contiene todos los likes a comentarios';
+
+
+/*
+Creación de idComentarioPadre para referenciar comentarios y poder validar si es padre o hijo
+
+--Ejecutar:
+USE microconnect;
+ALTER TABLE tComentario
+ADD COLUMN idComentarioPadre INT NULL COMMENT 'Identificador del comentario al que se responde (NULL si es principal)',
+ADD CONSTRAINT fkComentarioPadre
+    FOREIGN KEY (idComentarioPadre) REFERENCES tComentario(idComentario)
+    ON UPDATE CASCADE ON DELETE CASCADE;
+*/

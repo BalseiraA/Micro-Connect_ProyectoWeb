@@ -193,6 +193,21 @@ $jsonPosts = json_encode($postsArray);
       const postsBase = <?php echo $jsonPosts; ?>;
       
       const postsLigeros = postsBase.map(post => {
+          // Limpiamos los pesados Base64 de los avatares en comentarios
+          const comentariosLimpios = (post.comments || []).map(c => {
+              // Limpiamos las respuestas anidadas también
+              const respuestasLimpias = (c.replies || []).map(r => ({
+                  ...r,
+                  commentAuthorAvatar: '' // Vaciamos el peso
+              }));
+              
+              return {
+                  ...c,
+                  commentAuthorAvatar: '', // Vaciamos el peso
+                  replies: respuestasLimpias
+              };
+          });
+
           return {
               id: post.id,
               author: post.author,
@@ -200,10 +215,10 @@ $jsonPosts = json_encode($postsArray);
               createdAt: post.createdAt,
               mediaType: post.mediaType,
               likes: post.likes || [],
-              comments: post.comments || [],
+              comments: comentariosLimpios, // Inyectamos los comentarios ya aligerados
               authorDisplayName: post.authorDisplayName || post.author,
-              mediaDataUrl: '', 
-              authorAvatar: ''
+              mediaDataUrl: '', // Se mantiene vacío para evitar colapsos
+              authorAvatar: ''  // Se mantiene vacío
           };
       });
       
