@@ -511,4 +511,21 @@ body.login-bg main {
     padding-left: 0.75rem;
     padding-right: 0.75rem;
   }
+
+  /* =====================
+   NOTIFICACIONES
+   ===================== */
+
+#notifBadge {
+  line-height: 1;
+  pointer-events: none;
+}
+
+.notif-item {
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.notif-item:hover {
+  filter: brightness(0.97);
+}
 }

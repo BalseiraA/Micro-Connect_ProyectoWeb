@@ -308,6 +308,14 @@
         replyForm?.classList.add('hidden');
 
         updateCommentCounter(result.post);
+
+        window.MicroConnectNotifications?.addNotification({
+          toUser: result.comment.author,
+          fromUser: currentUser.username,
+          type: 'reply',
+          postId: result.post.id,
+          text: text
+        });
       }
 
       sendReplyBtn?.addEventListener('click', sendReply);
@@ -330,6 +338,16 @@
 
       btn.innerHTML = `${liked ? '❤️' : '🤍'} <span class="like-count">${post.likes.length}</span>`;
       btn.className = `like-btn flex items-center gap-1.5 text-sm transition ${liked ? 'text-red-500 font-semibold' : 'text-slate-400 hover:text-red-400'}`;
+
+      if (liked) {
+        window.MicroConnectNotifications?.addNotification({
+          toUser: post.author,
+          fromUser: currentUser.username,
+          type: 'like',
+          postId: post.id,
+          text: post.text || ''
+        });
+      }
     });
 
     card.querySelector('.comment-toggle-btn')?.addEventListener('click', () => {
@@ -359,6 +377,14 @@
       updateCommentCounter(post);
 
       input.value = '';
+
+      window.MicroConnectNotifications?.addNotification({
+        toUser: post.author,
+        fromUser: currentUser.username,
+        type: 'comment',
+        postId: post.id,
+        text: text
+      });
     });
 
     card.querySelector('.comment-input')?.addEventListener('keydown', (e) => {
@@ -614,7 +640,8 @@
         break;
 
       case 'notificaciones':
-        content.innerHTML = renderNotificaciones();
+        content.innerHTML = window.MicroConnectNotifications.renderNotificaciones(user.username);
+        window.MicroConnectNotifications.bindNotificaciones(user.username);
         break;
 
       case 'perfil':

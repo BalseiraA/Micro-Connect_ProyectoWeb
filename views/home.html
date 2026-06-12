@@ -27,7 +27,10 @@
       </div>
       <nav class="space-y-2" id="menuTabs" role="navigation" aria-label="Menú principal">
         <button data-tab="inicio" class="tab-btn w-full text-left px-4 py-3 rounded-xl active-tab">Inicio</button>
-        <button data-tab="notificaciones" class="tab-btn w-full text-left px-4 py-3 rounded-xl">Notificaciones</button>
+        <button data-tab="notificaciones" class="tab-btn w-full text-left px-4 py-3 rounded-xl relative">
+         Notificaciones
+         <span id="notifBadge" class="hidden absolute right-3 top-1/2 -translate-y-1/2 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1"></span>
+        </button>
         <button data-tab="perfil" class="tab-btn w-full text-left px-4 py-3 rounded-xl">Mi Perfil</button>
         <button data-tab="configuracion" class="tab-btn w-full text-left px-4 py-3 rounded-xl">Configuración</button>
       </nav>
@@ -41,6 +44,7 @@
 
   <script src="../assets/js/main.js"></script>
   <script src="../assets/js/login.js"></script>
+  <script src="../assets/js/notifications.js"></script>
   <script defer src="../assets/js/home.js"></script>
   <script defer src="../assets/js/myProfile.js"></script>
 </body>
