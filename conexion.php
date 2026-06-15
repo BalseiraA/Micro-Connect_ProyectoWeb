@@ -4,16 +4,16 @@
 $host = "localhost";
 $user = "root";
 $password = "";
-$database = "microconnect"; // El nombre que tiene en tu script SQL
+$database = "microconnect"; 
 
-// Creamos la conexión usando la extensión mysqli
+// Extensión
 $conexion = mysqli_connect($host, $user, $password, $database);
 
-// Validamos si la conexión fue exitosa
+// Validación
 if (!$conexion) {
     die("Error crítico de conexión: " . mysqli_connect_error());
 }
 
-// Configuración para soportar eñes, acentos y emojis (gracias a tu COLLATE utf8mb4)
+// Configuración para soporte de caracteres especiales con utf8mb4
 mysqli_set_charset($conexion, "utf8mb4");
 ?>
