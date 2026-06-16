@@ -1,12 +1,15 @@
 <?php
-// 1. Validar sesión en el servidor local y evitar cache del navegador
-session_start();
+// 1. Iniciar el motor de sesiones de forma segura y evitar el caché del navegador
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
 header("Expires: Sat, 01 Jan 2000 00:00:00 GMT");
 
+// 2. Control de Cierre de Sesión (Logout)
 if (isset($_GET['logout'])) {
     $_SESSION = [];
 
@@ -28,14 +31,16 @@ if (isset($_GET['logout'])) {
     exit();
 }
 
+// 3. Control de Seguridad: Si no hay usuario activo, mandarlo de vuelta al login
 if (!isset($_SESSION['usuario'])) {
     header("Location: ../index.php", true, 303);
     exit();
 }
 
 $usuarioLoggeado = $_SESSION['usuario'];
+$idUsuarioLoggeado = $usuarioLoggeado; // Homologamos ambas variables para evitar conflictos en las consultas
 
-// 2. Conectar a la base de datos 
+// 4. Conectar a la base de datos 
 include("../conexion.php");
 
 // 3. Traer los datos del usuario loggeado
@@ -61,7 +66,6 @@ $postsArray = [];
 while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     $row['id'] = (int)$row['id'];
     $currentPostId = $row['id'];
-
     $row['mediaType'] = '';
 
     if (!empty($row['mediaDataUrl'])) {
@@ -107,7 +111,6 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     while ($comentRow = mysqli_fetch_assoc($resultadoComent)) {
         $comentRow['id'] = (int)$comentRow['id'];
         $commentId = $comentRow['id'];
-
         $queryLikesComent = "SELECT idUsuario FROM tLikeComentario WHERE idComentario = $commentId";
         $resultadoLikesComent = mysqli_query($conexion, $queryLikesComent);
 
@@ -126,7 +129,6 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
             $respuestas[] = $comentRow;
         }
     }
-
     foreach ($respuestas as $respuesta) {
         $idPadre = $respuesta['parentId'];
 
@@ -134,7 +136,6 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
             $comentariosPrincipales[$idPadre]['replies'][] = $respuesta;
         }
     }
-
     $row['comments'] = array_values($comentariosPrincipales);
     $postsArray[] = $row;
 }
