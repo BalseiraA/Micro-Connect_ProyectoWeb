@@ -38,11 +38,11 @@ $usuarioLoggeado = $_SESSION['usuario'];
 // 2. Conectar a la base de datos 
 include("../conexion.php");
 
-// 3. Traer los datos del usuario loggeado (Nombre, Biografía, etc.) 
+// 3. Traer los datos del usuario loggeado
 $queryUser = mysqli_query($conexion, "SELECT * FROM tUsuario WHERE idUsuario = '$usuarioLoggeado'");
 $datosUsuario = mysqli_fetch_assoc($queryUser);
 
-// 4. MATCH PERFECTO CON TU DDL: Seleccionamos contenidoTextoPub y fechaHoraPub
+// 4. Traer publicaciones
 $queryPosts = "SELECT p.idPublicacion as id, 
                       p.idUsuario as author, 
                       p.contenidoTextoPub as text, 
@@ -57,12 +57,13 @@ $queryPosts = "SELECT p.idPublicacion as id,
 $resultadoPosts = mysqli_query($conexion, $queryPosts);
 
 $postsArray = [];
+
 while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     $row['id'] = (int)$row['id'];
     $currentPostId = $row['id'];
-    
-    // Identificamos dinámicamente si la cadena Base64 corresponde a una imagen o video
+
     $row['mediaType'] = '';
+
     if (!empty($row['mediaDataUrl'])) {
         if (strpos($row['mediaDataUrl'], 'data:video/') !== false) {
             $row['mediaType'] = 'video';
@@ -70,78 +71,77 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
             $row['mediaType'] = 'image';
         }
     } else {
-        $row['mediaDataUrl'] = ''; 
+        $row['mediaDataUrl'] = '';
     }
-    
-    // Traer los usuarios que le dieron like a esta publicación desde MySQL
+
+    // Likes de la publicación
     $queryLikes = "SELECT idUsuario FROM tLikePublicacion WHERE idPublicacion = $currentPostId";
     $resultadoLikes = mysqli_query($conexion, $queryLikes);
-    
+
     $likesArray = [];
+
     while ($likeRow = mysqli_fetch_assoc($resultadoLikes)) {
-        $likesArray[] = $likeRow['idUsuario']; 
+        $likesArray[] = $likeRow['idUsuario'];
     }
-    $row['likes'] = $likesArray;     
-    
-    // Extraemos los comentarios haciendo un LEFT JOIN con tUsuario 
-    // AGREGADO: c.idComentario (id) y c.idComentarioPadre (parentId)
+
+    $row['likes'] = $likesArray;
+
+    // Comentarios y respuestas
     $queryComentarios = "SELECT c.idComentario as id, 
-                                c.idComentarioPadre as parentId,
-                                c.idUsuario as author, 
-                                c.textoComent as text, 
-                                c.fechaHoraComent as createdAt,
-                                u.fotoPerfilUs as commentAuthorAvatar
-                          FROM tComentario c
-                          LEFT JOIN tUsuario u ON c.idUsuario = u.idUsuario
-                          WHERE c.idPublicacion = $currentPostId 
-                          ORDER BY c.fechaHoraComent ASC";
+                            c.idComentarioPadre as parentId,
+                            c.idUsuario as author, 
+                            c.textoComent as text, 
+                            c.fechaHoraComent as createdAt,
+                            u.nombreUs as commentAuthorDisplayName,
+                            u.fotoPerfilUs as commentAuthorAvatar
+                      FROM tComentario c
+                      LEFT JOIN tUsuario u ON c.idUsuario = u.idUsuario
+                      WHERE c.idPublicacion = $currentPostId 
+                      ORDER BY c.fechaHoraComent ASC";
+
     $resultadoComent = mysqli_query($conexion, $queryComentarios);
-    
+
     $comentariosPrincipales = [];
     $respuestas = [];
 
     while ($comentRow = mysqli_fetch_assoc($resultadoComent)) {
-        // Conservamos el ID REAL de la base de datos
         $comentRow['id'] = (int)$comentRow['id'];
         $commentId = $comentRow['id'];
-        
-        // Traemos los usuarios que le dieron like a ESTE comentario
+
         $queryLikesComent = "SELECT idUsuario FROM tLikeComentario WHERE idComentario = $commentId";
         $resultadoLikesComent = mysqli_query($conexion, $queryLikesComent);
+
         $likesComentArray = [];
+
         while ($likeRow = mysqli_fetch_assoc($resultadoLikesComent)) {
             $likesComentArray[] = $likeRow['idUsuario'];
         }
-        $comentRow['likes'] = $likesComentArray; 
-        
-        $comentRow['replies'] = []; // Preparamos el array de respuestas
-        
-        // Clasificamos si es comentario principal o respuesta
+
+        $comentRow['likes'] = $likesComentArray;
+        $comentRow['replies'] = [];
+
         if (is_null($comentRow['parentId'])) {
-            // Lo guardamos usando su ID como clave para buscarlo rápido después
             $comentariosPrincipales[$commentId] = $comentRow;
         } else {
-            // Va al arreglo temporal de respuestas
             $respuestas[] = $comentRow;
         }
     }
-    
-    // Anidamos las respuestas dentro de su respectivo comentario padre
+
     foreach ($respuestas as $respuesta) {
         $idPadre = $respuesta['parentId'];
+
         if (isset($comentariosPrincipales[$idPadre])) {
             $comentariosPrincipales[$idPadre]['replies'][] = $respuesta;
         }
     }
-    
-    // Convertimos el diccionario a un array simple para el JSON
+
     $row['comments'] = array_values($comentariosPrincipales);
     $postsArray[] = $row;
 }
 
-// Convertimos los arrays de PHP a formato JSON crudo
-$jsonUsuario = json_encode($datosUsuario);
-$jsonPosts = json_encode($postsArray);
+$jsonUsuario = json_encode($datosUsuario, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+$jsonPosts = json_encode($postsArray, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+$jsonUsuarioLoggeado = json_encode($usuarioLoggeado, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ?>
 <!doctype html>
 <html lang="es">
@@ -156,24 +156,33 @@ $jsonPosts = json_encode($postsArray);
     .dark .active-tab { background-color: rgb(39 39 42); color: rgb(248 250 252); }
   </style>
 </head>
+
 <body class="bg-slate-100 text-slate-900" data-font-size="16">
   <div class="min-h-screen lg:grid lg:grid-cols-[300px_1fr]">
     <button id="menuToggle" aria-label="Abrir menú" class="hamburger-btn">☰</button>
     <div id="sidebarOverlay" class="sidebar-overlay"></div>
+
     <aside id="sidebar" class="border-r border-slate-300 p-4 bg-slate-50 dark:bg-slate-950 dark:border-slate-800">
       <div class="sidebar-close-bar">
         <button id="sidebarClose" aria-label="Cerrar menú">✕</button>
       </div>
-      <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-violet-500 mb-8">Micro-Connect</h1>
+
+      <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-violet-500 mb-8">
+        Micro-Connect
+      </h1>
+
       <div class="rounded-xl bg-slate-200 dark:bg-slate-900 p-4 mb-6">
-        <p class="font-semibold">@<?php echo htmlspecialchars($usuarioLoggeado); ?></p>
+        <p class="font-semibold">@<?php echo htmlspecialchars($usuarioLoggeado, ENT_QUOTES, 'UTF-8'); ?></p>
       </div>
+
       <nav class="space-y-2" id="menuTabs" role="navigation" aria-label="Menú principal">
         <button data-tab="inicio" class="tab-btn w-full text-left px-4 py-3 rounded-xl active-tab">Inicio</button>
+
         <button data-tab="notificaciones" class="tab-btn w-full flex items-center justify-between px-4 py-3 rounded-xl">
           <span>Notificaciones</span>
           <span id="badgeNotificaciones" class="hidden bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">0</span>
         </button>
+
         <button data-tab="perfil" class="tab-btn w-full text-left px-4 py-3 rounded-xl">Mi Perfil</button>
         <button data-tab="configuracion" class="tab-btn w-full text-left px-4 py-3 rounded-xl">Configuración</button>
       </nav>
@@ -191,125 +200,156 @@ $jsonPosts = json_encode($postsArray);
   <script>
     (function() {
       sessionStorage.setItem('mc_auth', 'true');
-      sessionStorage.setItem('mc_user', '<?php echo $usuarioLoggeado; ?>');
-      
+      sessionStorage.setItem('mc_user', <?php echo $jsonUsuarioLoggeado; ?>);
+
       const postsBase = <?php echo $jsonPosts; ?>;
-      
+      window.__MICROCONNECT_POSTS_BASE__ = postsBase;
+
       const postsLigeros = postsBase.map(post => {
-          // Limpiamos los pesados Base64 de los avatares en comentarios
-          const comentariosLimpios = (post.comments || []).map(c => {
-              // Limpiamos las respuestas anidadas también
-              const respuestasLimpias = (c.replies || []).map(r => ({
-                  ...r,
-                  commentAuthorAvatar: '' // Vaciamos el peso
-              }));
-              
-              return {
-                  ...c,
-                  commentAuthorAvatar: '', // Vaciamos el peso
-                  replies: respuestasLimpias
-              };
-          });
+        const comentariosLimpios = (post.comments || []).map(c => {
+          const respuestasLimpias = (c.replies || []).map(r => ({
+            ...r,
+            commentAuthorAvatar: ''
+          }));
 
           return {
-              id: post.id,
-              author: post.author,
-              text: post.text,
-              createdAt: post.createdAt,
-              mediaType: post.mediaType,
-              likes: post.likes || [],
-              comments: comentariosLimpios,
-              authorDisplayName: post.authorDisplayName || post.author,
-              mediaDataUrl: post.mediaDataUrl || '',
-              authorAvatar: ''
+            ...c,
+            commentAuthorAvatar: '',
+            replies: respuestasLimpias
           };
+        });
+
+        return {
+          id: post.id,
+          author: post.author,
+          text: post.text,
+          createdAt: post.createdAt,
+          mediaType: post.mediaType,
+          likes: post.likes || [],
+          comments: comentariosLimpios,
+          authorDisplayName: post.authorDisplayName || post.author,
+
+          // IMPORTANTE:
+          // Se conserva la imagen/video Base64 para que home.js pueda crear el <img> o <video>.
+          mediaDataUrl: post.mediaDataUrl || '',
+
+          // Evitamos cargar avatares pesados en localStorage.
+          authorAvatar: ''
+        };
       });
-      
+
       try {
-          localStorage.setItem('mc_posts', JSON.stringify(postsLigeros));
+        localStorage.setItem('mc_posts', JSON.stringify(postsLigeros));
       } catch (error) {
-          console.warn("⚠️ LocalStorage lleno.");
+        console.warn('⚠️ LocalStorage lleno. Algunas publicaciones con multimedia podrían no persistir localmente.', error);
       }
-      
+
       if (window.MicroConnectApp && window.MicroConnectApp.userStore) {
         window.MicroConnectApp.userStore.findUserByUsername = function(username) {
           const userData = <?php echo $jsonUsuario; ?>;
-          
+
           if (userData && userData.idUsuario === username) {
             return {
               username: userData.idUsuario,
-              displayName: userData.nombreUs,
-              bio: userData.biografiaUs,
+              displayName: userData.nombreUs || userData.idUsuario,
+              email: userData.correoElectronicoUs || '',
+              birthDate: userData.fechaNacimiento || '',
+              bio: userData.biografiaUs || '',
               avatarDataUrl: userData.fotoPerfilUs || ''
             };
           }
-          
+
           const postDelAutor = postsBase.find(p => p.author === username);
+
           if (postDelAutor) {
             return {
               username: username,
               displayName: postDelAutor.authorDisplayName || username,
+              email: '',
+              birthDate: '',
               bio: '',
               avatarDataUrl: postDelAutor.authorAvatar || ''
             };
           }
-          
+
           for (const post of postsBase) {
             if (Array.isArray(post.comments)) {
-              const comentarioDelAutor = post.comments.find(c => c.author === username);
+              const comentariosYRespuestas = [];
+
+              post.comments.forEach(c => {
+                comentariosYRespuestas.push(c);
+
+                if (Array.isArray(c.replies)) {
+                  c.replies.forEach(r => comentariosYRespuestas.push(r));
+                }
+              });
+
+              const comentarioDelAutor = comentariosYRespuestas.find(c => c.author === username);
+
               if (comentarioDelAutor) {
                 return {
                   username: username,
-                  displayName: username,
+                  displayName: comentarioDelAutor.commentAuthorDisplayName || username,
+                  email: '',
+                  birthDate: '',
                   bio: '',
                   avatarDataUrl: comentarioDelAutor.commentAuthorAvatar || ''
                 };
               }
             }
           }
-          
-          return { username, displayName: username, avatarDataUrl: '' };
+
+          return {
+            username,
+            displayName: username,
+            email: '',
+            birthDate: '',
+            bio: '',
+            avatarDataUrl: ''
+          };
         };
       }
 
-      // Interceptor pasivo: No fuerza redibujados manuales, evita borrar la caja de creación
       const acoplarInterceptores = () => {
-          if (window.MicroConnectHomeShared && window.MicroConnectHomeShared.renderFeed) {
-              const originalRenderFeed = window.MicroConnectHomeShared.renderFeed;
-              
-              window.MicroConnectHomeShared.renderFeed = function(container, currentUser) {
-                  // Permitimos que la SPA monte la caja de creación y las publicaciones de forma nativa
-                  originalRenderFeed(container, currentUser);
-                  
-                  // Una vez renderizado el DOM original, le acoplamos las imágenes correspondientes
-                  postsBase.forEach(post => {
-                      const tarjeta = container.querySelector(`[data-post-id="${post.id}"]`);
-                      if (tarjeta) {
-                          if (post.mediaDataUrl) {
-                              const imgElement = tarjeta.querySelector('img.w-full');
-                              const videoElement = tarjeta.querySelector('video.w-full');
-                              if (imgElement) imgElement.src = post.mediaDataUrl;
-                              if (videoElement) videoElement.src = post.mediaDataUrl;
-                          }
-                          
-                          if (post.authorAvatar) {
-                              const avatarContenedor = container.querySelector(`[data-post-id="${post.id}"] .flex.items-center.gap-3`);
-                              if (avatarContenedor) {
-                                  const imgAvatar = avatarContenedor.querySelector('img');
-                                  if (imgAvatar) {
-                                      imgAvatar.src = post.authorAvatar;
-                                  } else {
-                                      const circuloInicial = avatarContenedor.querySelector('div.rounded-full');
-                                      if (circuloInicial) {
-                                          circuloInicial.outerHTML = `<img src="${post.authorAvatar}" class="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700" />`;
-                                      }
-                                  }
-                              }
-                          }
-                      }
-                  });
-              };
-          }
+        if (window.MicroConnectHomeShared && window.MicroConnectHomeShared.renderFeed) {
+          const originalRenderFeed = window.MicroConnectHomeShared.renderFeed;
+
+          window.MicroConnectHomeShared.renderFeed = function(container, currentUser) {
+            originalRenderFeed(container, currentUser);
+
+            postsBase.forEach(post => {
+              const tarjeta = container.querySelector(`[data-post-id="${post.id}"]`);
+
+              if (!tarjeta) return;
+
+              if (post.mediaDataUrl) {
+                const imgElement = tarjeta.querySelector('img.w-full');
+                const videoElement = tarjeta.querySelector('video.w-full');
+
+                if (imgElement) imgElement.src = post.mediaDataUrl;
+                if (videoElement) videoElement.src = post.mediaDataUrl;
+              }
+
+              if (post.authorAvatar) {
+                const avatarContenedor = container.querySelector(`[data-post-id="${post.id}"] .flex.items-center.gap-3`);
+
+                if (avatarContenedor) {
+                  const imgAvatar = avatarContenedor.querySelector('img');
+
+                  if (imgAvatar) {
+                    imgAvatar.src = post.authorAvatar;
+                  } else {
+                    const circuloInicial = avatarContenedor.querySelector('div.rounded-full');
+
+                    if (circuloInicial) {
+                      circuloInicial.outerHTML = `<img src="${post.authorAvatar}" class="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-700" />`;
+                    }
+                  }
+                }
+              }
+            });
+          };
+        }
       };
 
       acoplarInterceptores();
@@ -342,6 +382,7 @@ $jsonPosts = json_encode($postsArray);
 
       document.addEventListener('click', function(event) {
         const logoutBtn = event.target.closest('#logoutBtn');
+
         if (!logoutBtn) return;
 
         event.preventDefault();
@@ -364,7 +405,6 @@ $jsonPosts = json_encode($postsArray);
           const resultado = await respuesta.json();
 
           if (resultado.status === 'success') {
-            // 1. LÓGICA DEL GLOBITO ROJO EN SIDEBAR
             const noLeidas = resultado.data.filter(notif => notif.leido === 0).length;
             const badge = document.getElementById('badgeNotificaciones');
 
@@ -377,10 +417,9 @@ $jsonPosts = json_encode($postsArray);
               }
             }
 
-            // 2. LÓGICA DE RENDERIZADO DE TARJETAS EN EL PANEL CENTRAL
-            const contenedorLista = document.getElementById('contenedor-lista-notificaciones'); 
-            
-            if (!contenedorLista) return; 
+            const contenedorLista = document.getElementById('contenedor-lista-notificaciones');
+
+            if (!contenedorLista) return;
 
             if (resultado.data.length === 0) {
               contenedorLista.innerHTML = '<p class="text-muted text-center mt-4">No tienes notificaciones nuevas.</p>';
@@ -405,20 +444,20 @@ $jsonPosts = json_encode($postsArray);
 
               const tarjetaHTML = `
                 <div class="card mb-3 shadow-sm border-0" style="background-color: #f4f8ff; border-radius: 15px; margin: 10px 0;">
-                    <div class="card-body d-flex align-items-center" style="padding: 15px 20px;">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white font-weight-bold" 
-                             style="width: 45px; height: 45px; background: linear-gradient(45deg, #7f00ff, #e100ff); flex-shrink: 0; margin-right: 15px; font-size: 1.2rem;">
-                            ${notif.usuario.nombre.charAt(0).toUpperCase()}
-                        </div>
-                        
-                        <div style="flex-grow: 1;">
-                            <p class="mb-0" style="color: #2c3e50; font-size: 0.95rem; line-height: 1.4;">
-                                <span style="color: #e100ff;">${iconoEmoticono}</span> 
-                                <strong>@${notif.usuario.nombre}</strong> ${mensajeAccion}
-                            </p>
-                            <small class="text-muted" style="font-size: 0.8rem;">hace un momento</small>
-                        </div>
+                  <div class="card-body d-flex align-items-center" style="padding: 15px 20px;">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center text-white font-weight-bold" 
+                      style="width: 45px; height: 45px; background: linear-gradient(45deg, #7f00ff, #e100ff); flex-shrink: 0; margin-right: 15px; font-size: 1.2rem;">
+                      ${notif.usuario.nombre.charAt(0).toUpperCase()}
                     </div>
+
+                    <div style="flex-grow: 1;">
+                      <p class="mb-0" style="color: #2c3e50; font-size: 0.95rem; line-height: 1.4;">
+                        <span style="color: #e100ff;">${iconoEmoticono}</span> 
+                        <strong>@${notif.usuario.nombre}</strong> ${mensajeAccion}
+                      </p>
+                      <small class="text-muted" style="font-size: 0.8rem;">hace un momento</small>
+                    </div>
+                  </div>
                 </div>
               `;
 
@@ -426,7 +465,7 @@ $jsonPosts = json_encode($postsArray);
             });
           }
         } catch (error) {
-          console.error("Error concurrente en el módulo de notificaciones:", error);
+          console.error('Error concurrente en el módulo de notificaciones:', error);
         }
       }
 
@@ -436,6 +475,5 @@ $jsonPosts = json_encode($postsArray);
       });
     })();
   </script>
-  
 </body>
 </html>

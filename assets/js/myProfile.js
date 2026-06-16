@@ -11,9 +11,22 @@
   }
 
   function formatDate(isoDate) {
-    return shared()?.formatDate
-      ? shared().formatDate(isoDate)
-      : (isoDate || 'No especificada');
+    if (!isoDate) return 'No especificada';
+
+    const value = String(isoDate).slice(0, 10);
+    const parts = value.split('-');
+
+    if (parts.length === 3) {
+      const [year, month, day] = parts;
+      if (year && month && day) return `${day}/${month}/${year}`;
+    }
+
+    return value || 'No especificada';
+  }
+
+  function dateForInput(isoDate) {
+    if (!isoDate) return '';
+    return String(isoDate).slice(0, 10);
   }
 
   function getPosts() {
@@ -53,7 +66,7 @@
 
           <button id="editProfileBtn"
             class="w-full bg-gradient-to-r from-blue-500 to-violet-500 hover:opacity-90 text-white font-semibold py-2 px-6 rounded-xl transition">
-                Editar perfil
+            Editar perfil
           </button>
         </div>
 
@@ -73,6 +86,8 @@
   function openEditModal(user) {
     document.getElementById('editProfileModal')?.remove();
 
+    let removeAvatar = false;
+
     const modal = document.createElement('div');
     modal.id = 'editProfileModal';
     modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto';
@@ -86,20 +101,39 @@
         <div id="editError" class="hidden text-red-500 text-sm bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2"></div>
         <div id="editSuccess" class="hidden text-green-600 text-sm bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2"></div>
 
-        <div class="flex items-center gap-4">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-4">
           <div id="avatarPreview" class="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center text-white text-2xl font-bold shrink-0">
             ${user.avatarDataUrl ? `<img src="${user.avatarDataUrl}" class="w-full h-full object-cover" />` : sanitize(user.displayName || user.username).charAt(0).toUpperCase()}
           </div>
-          <div>
-            <label class="block text-sm font-semibold mb-1">Foto de perfil</label>
-            <input type="file" id="avatarInput" accept="image/png,image/jpeg" class="text-sm text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 cursor-pointer" />
+
+          <div class="flex-1 min-w-0">
+            <label class="block text-sm font-semibold mb-2">Foto de perfil</label>
+
+            <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <input
+                type="file"
+                id="avatarInput"
+                accept="image/png,image/jpeg"
+                class="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-800 dark:file:text-slate-100 hover:file:bg-slate-200 dark:hover:file:bg-slate-700 cursor-pointer"
+              />
+
+              <button
+                type="button"
+                id="removeAvatarBtn"
+                class="w-full sm:w-auto px-4 py-2 rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 font-semibold text-sm hover:bg-red-50 dark:hover:bg-red-950 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                ${user.avatarDataUrl ? '' : 'disabled'}
+              >
+                Eliminar foto
+              </button>
+            </div>
+
             <p class="text-xs text-slate-400 mt-1">PNG o JPG</p>
           </div>
         </div>
 
         ${editField('displayName', 'Nombre completo', user.displayName || '', 'text')}
         ${editField('editEmail', 'Correo electrónico', user.email || '', 'email')}
-        ${editField('editBirthDate', 'Fecha de nacimiento', user.birthDate || '', 'date')}
+        ${editField('editBirthDate', 'Fecha de nacimiento', dateForInput(user.birthDate), 'date')}
         ${editTextarea('editBio', 'Biografía', user.bio || '')}
 
         <details class="group">
@@ -111,6 +145,7 @@
                 class="w-full border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm" />
               <p id="currentPassFeedback" class="hidden text-xs mt-1"></p>
             </div>
+
             <div>
               <label for="editNewPass" class="block text-sm font-semibold mb-1">Nueva contraseña</label>
               <input id="editNewPass" type="password"
@@ -120,6 +155,7 @@
               </div>
               <p id="newPassFeedback" class="hidden text-xs mt-1"></p>
             </div>
+
             <div>
               <label for="editNewPassConfirm" class="block text-sm font-semibold mb-1">Confirmar nueva contraseña</label>
               <input id="editNewPassConfirm" type="password"
@@ -143,76 +179,187 @@
 
     const avatarInput = modal.querySelector('#avatarInput');
     const avatarPreview = modal.querySelector('#avatarPreview');
+    const removeAvatarBtn = modal.querySelector('#removeAvatarBtn');
+
+    function renderAvatarInitial() {
+      avatarPreview.innerHTML = sanitize(user.displayName || user.username).charAt(0).toUpperCase();
+    }
 
     avatarInput?.addEventListener('change', () => {
       const file = avatarInput.files[0];
+
       if (!file) return;
+
       if (!window.MicroConnectApp.isValidImage(file)) {
         showMsg('Solo PNG o JPG.', 'error');
         avatarInput.value = '';
         return;
       }
+
+      removeAvatar = false;
+
+      if (removeAvatarBtn) {
+        removeAvatarBtn.disabled = false;
+      }
+
       const reader = new FileReader();
+
       reader.onload = (e) => {
         avatarPreview.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover" />`;
       };
+
       reader.readAsDataURL(file);
     });
 
-    modal.querySelector('#editCurrentPass')?.addEventListener('input', () => { validateCurrentPassword(); });
-    modal.querySelector('#editNewPass')?.addEventListener('input', () => { validateNewPassword(); validateConfirmPassword(); });
-    modal.querySelector('#editNewPassConfirm')?.addEventListener('input', () => { validateConfirmPassword(); });
+    removeAvatarBtn?.addEventListener('click', () => {
+      removeAvatar = true;
+
+      if (avatarInput) {
+        avatarInput.value = '';
+      }
+
+      renderAvatarInitial();
+
+      if (removeAvatarBtn) {
+        removeAvatarBtn.disabled = true;
+      }
+
+      showMsg('La foto de perfil se eliminará al guardar los cambios.', 'success');
+    });
+
+    modal.querySelector('#editCurrentPass')?.addEventListener('input', () => {
+      validateCurrentPassword();
+    });
+
+    modal.querySelector('#editNewPass')?.addEventListener('input', () => {
+      validateNewPassword();
+      validateConfirmPassword();
+    });
+
+    modal.querySelector('#editNewPassConfirm')?.addEventListener('input', () => {
+      validateConfirmPassword();
+    });
 
     function showMsg(msg, type) {
       const e = modal.querySelector('#editError');
       const s = modal.querySelector('#editSuccess');
-      if (type === 'error') { e.textContent = msg; e.classList.remove('hidden'); s.classList.add('hidden'); }
-      else { s.textContent = msg; s.classList.remove('hidden'); e.classList.add('hidden'); }
+
+      if (type === 'error') {
+        e.textContent = msg;
+        e.classList.remove('hidden');
+        s.classList.add('hidden');
+      } else {
+        s.textContent = msg;
+        s.classList.remove('hidden');
+        e.classList.add('hidden');
+      }
     }
 
     function setInputState(input, feedback, isValid, message) {
       if (!input || !feedback) return;
+
       input.classList.remove('border-red-400', 'focus:ring-red-400', 'border-green-400', 'focus:ring-green-400');
       feedback.classList.remove('hidden', 'text-red-500', 'text-green-600', 'text-slate-400');
-      if (!message) { feedback.textContent = ''; feedback.classList.add('hidden'); return; }
+
+      if (!message) {
+        feedback.textContent = '';
+        feedback.classList.add('hidden');
+        return;
+      }
+
       feedback.textContent = message;
-      if (isValid) { input.classList.add('border-green-400', 'focus:ring-green-400'); feedback.classList.add('text-green-600'); }
-      else { input.classList.add('border-red-400', 'focus:ring-red-400'); feedback.classList.add('text-red-500'); }
+
+      if (isValid) {
+        input.classList.add('border-green-400', 'focus:ring-green-400');
+        feedback.classList.add('text-green-600');
+      } else {
+        input.classList.add('border-red-400', 'focus:ring-red-400');
+        feedback.classList.add('text-red-500');
+      }
     }
 
     function validateCurrentPassword() {
       const input = modal.querySelector('#editCurrentPass');
       const feedback = modal.querySelector('#currentPassFeedback');
+
       if (!input || !feedback) return false;
-      if (!input.value) { setInputState(input, feedback, false, ''); return false; }
+
+      if (!input.value) {
+        setInputState(input, feedback, false, '');
+        return false;
+      }
+
       setInputState(input, feedback, true, 'Listo para validar en servidor.');
       return true;
     }
 
     function getPasswordStrength(password) {
       let score = 0;
+
       if (password.length >= 6) score++;
       if (password.length >= 8) score++;
       if (/[a-z]/.test(password)) score++;
       if (/[A-Z]/.test(password)) score++;
       if (/[0-9]/.test(password)) score++;
       if (/[^A-Za-z0-9]/.test(password)) score++;
-      if (!password) return { level: 'empty', label: '', percent: '0%', color: 'transparent', isValid: false };
-      if (score <= 2) return { level: 'weak', label: 'Contraseña débil. Usa mínimo 6 caracteres, mayúsculas, números o símbolos.', percent: '33%', color: '#ef4444', isValid: false };
-      if (score <= 4) return { level: 'medium', label: 'Contraseña media.', percent: '66%', color: '#f59e0b', isValid: true };
-      return { level: 'strong', label: 'Contraseña fuerte.', percent: '100%', color: '#22c55e', isValid: true };
+
+      if (!password) {
+        return {
+          level: 'empty',
+          label: '',
+          percent: '0%',
+          color: 'transparent',
+          isValid: false
+        };
+      }
+
+      if (score <= 2) {
+        return {
+          level: 'weak',
+          label: 'Contraseña débil. Usa mínimo 6 caracteres, mayúsculas, números o símbolos.',
+          percent: '33%',
+          color: '#ef4444',
+          isValid: false
+        };
+      }
+
+      if (score <= 4) {
+        return {
+          level: 'medium',
+          label: 'Contraseña media.',
+          percent: '66%',
+          color: '#f59e0b',
+          isValid: true
+        };
+      }
+
+      return {
+        level: 'strong',
+        label: 'Contraseña fuerte.',
+        percent: '100%',
+        color: '#22c55e',
+        isValid: true
+      };
     }
 
     function validateNewPassword() {
       const input = modal.querySelector('#editNewPass');
       const feedback = modal.querySelector('#newPassFeedback');
       const bar = modal.querySelector('#newPassStrengthBar');
+
       if (!input || !feedback || !bar) return false;
+
       const value = input.value;
       const strength = getPasswordStrength(value);
+
       bar.style.width = strength.percent;
       bar.style.backgroundColor = strength.color;
-      if (!value) { setInputState(input, feedback, false, ''); return false; }
+
+      if (!value) {
+        setInputState(input, feedback, false, '');
+        return false;
+      }
+
       setInputState(input, feedback, strength.isValid, strength.label);
       return strength.isValid;
     }
@@ -221,33 +368,58 @@
       const newPassInput = modal.querySelector('#editNewPass');
       const confirmInput = modal.querySelector('#editNewPassConfirm');
       const feedback = modal.querySelector('#confirmPassFeedback');
+
       if (!newPassInput || !confirmInput || !feedback) return false;
+
       const newPass = newPassInput.value;
       const confirmPass = confirmInput.value;
-      if (!confirmPass) { setInputState(confirmInput, feedback, false, ''); return false; }
-      if (!newPass) { setInputState(confirmInput, feedback, false, 'Primero escribe una nueva contraseña.'); return false; }
-      if (newPass === confirmPass) { setInputState(confirmInput, feedback, true, 'Las contraseñas coinciden.'); return true; }
+
+      if (!confirmPass) {
+        setInputState(confirmInput, feedback, false, '');
+        return false;
+      }
+
+      if (!newPass) {
+        setInputState(confirmInput, feedback, false, 'Primero escribe una nueva contraseña.');
+        return false;
+      }
+
+      if (newPass === confirmPass) {
+        setInputState(confirmInput, feedback, true, 'Las contraseñas coinciden.');
+        return true;
+      }
+
       setInputState(confirmInput, feedback, false, 'Las contraseñas no coinciden.');
       return false;
     }
 
-    // ── FIX: solo cierran los botones ✕ y Cancelar, NO el click en el fondo ──
-    function closeModal() { modal.remove(); }
+    function closeModal() {
+      modal.remove();
+    }
+
     modal.querySelector('#closeEditModal')?.addEventListener('click', closeModal);
     modal.querySelector('#cancelEditBtn')?.addEventListener('click', closeModal);
 
     modal.querySelector('#saveProfileBtn')?.addEventListener('click', () => {
       const newName = sanitize(modal.querySelector('#displayName').value);
-      if (!newName) { showMsg('El nombre no puede estar vacío.', 'error'); return; }
+
+      if (!newName) {
+        showMsg('El nombre no puede estar vacío.', 'error');
+        return;
+      }
 
       const formData = new FormData();
+
       formData.append('displayName', newName);
       formData.append('email', sanitize(modal.querySelector('#editEmail').value));
       formData.append('birthDate', modal.querySelector('#editBirthDate').value || '');
       formData.append('bio', sanitize(modal.querySelector('#editBio').value));
 
       const fileInput = modal.querySelector('#avatarInput');
-      if (fileInput && fileInput.files.length > 0) {
+
+      formData.append('removeProfilePhoto', removeAvatar ? '1' : '0');
+
+      if (!removeAvatar && fileInput && fileInput.files.length > 0) {
         formData.append('profilePhoto', fileInput.files[0]);
       }
 
@@ -256,21 +428,40 @@
       const nc = String(modal.querySelector('#editNewPassConfirm')?.value || '').trim();
 
       if (np !== '' || nc !== '') {
-        if (cp === '') { showMsg('Escribe tu contraseña actual para autorizar los cambios de seguridad.', 'error'); return; }
-        if (!validateNewPassword()) { showMsg('La nueva contraseña debe tener fortaleza media o fuerte.', 'error'); return; }
-        if (!validateConfirmPassword()) { showMsg('Las contraseñas nuevas no coinciden.', 'error'); return; }
+        if (cp === '') {
+          showMsg('Escribe tu contraseña actual para autorizar los cambios de seguridad.', 'error');
+          return;
+        }
+
+        if (!validateNewPassword()) {
+          showMsg('La nueva contraseña debe tener fortaleza media o fuerte.', 'error');
+          return;
+        }
+
+        if (!validateConfirmPassword()) {
+          showMsg('Las contraseñas nuevas no coinciden.', 'error');
+          return;
+        }
+
         formData.append('currentPassword', cp);
         formData.append('newPassword', np);
       }
 
-      fetch('editarUsuario.php', { method: 'POST', body: formData })
+      fetch('editarUsuario.php', {
+        method: 'POST',
+        body: formData
+      })
         .then(res => res.json())
         .then(data => {
           if (data.status === 'success') {
             showMsg('¡Perfil actualizado con éxito!', 'success');
-            setTimeout(() => { closeModal(); window.location.reload(); }, 900);
+
+            setTimeout(() => {
+              closeModal();
+              window.location.reload();
+            }, 900);
           } else {
-            showMsg(data.message, 'error');
+            showMsg(data.message || 'No se pudo actualizar el perfil.', 'error');
           }
         })
         .catch(err => {
@@ -300,13 +491,25 @@
 
   function mount(container, user) {
     if (!container || !user) return;
+
     container.innerHTML = renderPerfil(user);
-    document.getElementById('editProfileBtn')?.addEventListener('click', () => openEditModal(user));
+
+    document.getElementById('editProfileBtn')?.addEventListener('click', () => {
+      openEditModal(user);
+    });
+
     const bindPostCard = shared()?.bindPostCard;
+
     if (bindPostCard) {
-      document.querySelectorAll('#myPostsFeed .post-card').forEach(card => bindPostCard(card, user));
+      document.querySelectorAll('#myPostsFeed .post-card').forEach(card => {
+        bindPostCard(card, user);
+      });
     }
   }
 
-  window.MicroConnectProfile = { mount, renderPerfil, openEditModal };
+  window.MicroConnectProfile = {
+    mount,
+    renderPerfil,
+    openEditModal
+  };
 })();

@@ -1,6 +1,8 @@
-DROP DATABASE IF EXISTS microconnect;
+#DROP DATABASE IF EXISTS microconnect;
+/*
 CREATE DATABASE microconnect COLLATE = utf8mb4_unicode_ci;
 USE microconnect;
+*/
 
 # ─── TABLA: tUsuario ──────────────────────────────────────────────────
 CREATE TABLE tUsuario (

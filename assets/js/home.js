@@ -282,11 +282,50 @@
   // ─── Avatar helper ─────────────────────────────────────────────────────────
 
   function avatarHTML(user, size = 'w-10 h-10 text-base') {
-    if (user?.avatarDataUrl) {
-      return `<img src="${user.avatarDataUrl}" class="${size} rounded-full object-cover shrink-0 border-2 border-slate-200 dark:border-slate-700" />`;
+    function getAvatarStyle(sizeClass) {
+      const value = String(sizeClass || '');
+
+      let dimensions = 'width:2.5rem;height:2.5rem;min-width:2.5rem;font-size:1rem;';
+
+      if (value.includes('w-6') || value.includes('h-6')) {
+        dimensions = 'width:1.5rem;height:1.5rem;min-width:1.5rem;font-size:0.75rem;';
+      } else if (value.includes('w-8') || value.includes('h-8')) {
+        dimensions = 'width:2rem;height:2rem;min-width:2rem;font-size:0.875rem;';
+      } else if (value.includes('w-20') || value.includes('h-20')) {
+        dimensions = 'width:5rem;height:5rem;min-width:5rem;font-size:1.875rem;';
+      }
+
+      return `
+        ${dimensions}
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        text-align:center;
+        line-height:1;
+        padding:0;
+        margin:0;
+        aspect-ratio:1 / 1;
+        overflow:hidden;
+      `;
     }
+
+    const style = getAvatarStyle(size);
+
+    if (user?.avatarDataUrl) {
+      return `<img src="${user.avatarDataUrl}" 
+        class="rounded-full object-cover shrink-0 border-2 border-slate-200 dark:border-slate-700" 
+        style="${style};display:block;" />`;
+    }
+
     const letter = sanitize(user?.displayName || user?.username || '?').charAt(0).toUpperCase();
-    return `<div class="${size} rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center text-white font-bold shrink-0">${letter}</div>`;
+
+    return `<div 
+      class="rounded-full bg-gradient-to-br from-blue-400 to-violet-500 text-white font-bold shrink-0" 
+      style="${style}">
+      <span style="display:block;line-height:1;margin:0;padding:0;transform:translateY(-0.5px);">
+        ${letter}
+      </span>
+    </div>`;
   }
 
   function renderSidebarUser(user) {
@@ -297,21 +336,41 @@
   // ─── Feed de publicaciones ─────────────────────────────────────────────────
 
   function replyHTML(reply, store, currentUser, parentCommentId) {
-    const rUser = store?.findUserByUsername(reply.author) || { username: reply.author };
+    const foundUser = store?.findUserByUsername(reply.author);
+
+    const rUser = {
+      username: reply.author,
+      displayName: reply.commentAuthorDisplayName || foundUser?.displayName || reply.author,
+      avatarDataUrl: reply.commentAuthorAvatar || foundUser?.avatarDataUrl || ''
+    };
+
     const liked = Array.isArray(reply.likes) ? reply.likes.includes(currentUser.username) : false;
 
     return `
       <div class="flex space-x-3 reply-item mb-2" data-comment-id="${reply.id}">
         ${avatarHTML(rUser, 'w-6 h-6 text-xs')}
-        <div class="flex-1">
+
+        <div class="flex-1 min-w-0">
           <div class="bg-slate-50 dark:bg-slate-800/70 border border-slate-100 dark:border-slate-700 rounded-xl rounded-tl-none px-3 py-2">
-            <span class="font-bold text-xs text-slate-900 dark:text-white">@${sanitize(reply.author)}</span>
-            <p class="text-xs text-slate-800 dark:text-slate-200 mt-0.5">${sanitize(reply.text)}</p>
+            <div class="leading-tight mb-1">
+              <p class="comment-display-name font-bold text-xs text-slate-900 dark:text-white">
+                ${sanitize(rUser.displayName)}
+              </p>
+              <p class="comment-username text-[11px] text-slate-500 dark:text-slate-400">
+                @${sanitize(rUser.username)}
+              </p>
+            </div>
+
+            <p class="text-xs text-slate-800 dark:text-slate-200 mt-0.5 break-words">
+              ${sanitize(reply.text)}
+            </p>
           </div>
-          <div class="flex items-center space-x-4 mt-1 text-[11px] text-slate-500 font-medium">
+
+          <div class="flex items-center space-x-4 mt-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
             <button type="button" class="like-comment-btn hover:text-red-500 flex items-center gap-1 transition ${liked ? 'text-red-500 font-bold' : ''}" data-comment-id="${reply.id}">
               <span>${liked ? '❤️' : '🤍'}</span> <span class="like-count">${reply.likes ? reply.likes.length : 0}</span>
             </button>
+
             <button type="button" class="reply-comment-btn hover:text-blue-500" data-comment-id="${parentCommentId}">
               Responder
             </button>
@@ -321,23 +380,42 @@
   }
 
   function commentHTML(comment, store, currentUser) {
-    const cUser = store?.findUserByUsername(comment.author) || { username: comment.author };
+    const foundUser = store?.findUserByUsername(comment.author);
+
+    const cUser = {
+      username: comment.author,
+      displayName: comment.commentAuthorDisplayName || foundUser?.displayName || comment.author,
+      avatarDataUrl: comment.commentAuthorAvatar || foundUser?.avatarDataUrl || ''
+    };
+
     const liked = Array.isArray(comment.likes) ? comment.likes.includes(currentUser.username) : false;
     const repliesHTML = (comment.replies || []).map(reply => replyHTML(reply, store, currentUser, comment.id)).join('');
 
     return `
       <div class="comment-item flex space-x-3 mb-4" data-comment-id="${comment.id}">
         ${avatarHTML(cUser, 'w-8 h-8 text-sm')}
-        <div class="flex-1">
+
+        <div class="flex-1 min-w-0">
           <div class="bg-slate-100 dark:bg-slate-800 rounded-xl rounded-tl-none px-3 py-2">
-            <span class="font-bold text-sm text-slate-900 dark:text-white">@${sanitize(comment.author)}</span>
-            <p class="text-sm text-slate-800 dark:text-slate-200 mt-0.5">${sanitize(comment.text)}</p>
+            <div class="leading-tight mb-1">
+              <p class="comment-display-name font-bold text-sm text-slate-900 dark:text-white">
+                ${sanitize(cUser.displayName)}
+              </p>
+              <p class="comment-username text-xs text-slate-500 dark:text-slate-400">
+                @${sanitize(cUser.username)}
+              </p>
+            </div>
+
+            <p class="text-sm text-slate-800 dark:text-slate-200 mt-0.5 break-words">
+              ${sanitize(comment.text)}
+            </p>
           </div>
           
-          <div class="flex items-center space-x-4 mt-1 text-xs text-slate-500 font-medium">
+          <div class="flex items-center space-x-4 mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
             <button type="button" class="like-comment-btn hover:text-red-500 flex items-center gap-1 transition ${liked ? 'text-red-500 font-bold' : ''}" data-comment-id="${comment.id}">
               <span>${liked ? '❤️' : '🤍'}</span> <span class="like-count">${comment.likes ? comment.likes.length : 0}</span>
             </button>
+
             <button type="button" class="reply-comment-btn hover:text-blue-500" data-comment-id="${comment.id}">
               Responder
             </button>
@@ -349,9 +427,13 @@
 
           <div class="reply-form hidden mt-2 flex gap-2 items-center">
             ${avatarHTML(currentUser, 'w-6 h-6 text-xs')}
+
             <input type="text" placeholder="Responder comentario…" maxlength="300"
               class="reply-input flex-1 bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400" />
-            <button type="button" class="send-reply-btn bg-blue-500 hover:bg-blue-600 text-white rounded-xl px-3 py-1.5 text-xs transition">↩</button>
+
+            <button type="button" class="send-reply-btn bg-blue-500 hover:bg-blue-600 text-white rounded-xl px-3 py-1.5 text-xs transition">
+              ↩
+            </button>
           </div>
         </div>
       </div>`;
@@ -454,15 +536,14 @@
 
              // MAGIA: Si el botón pertenece a una sub-respuesta, capturamos su @usuario
              const replyCard = replyBtn.closest('.reply-item');
-             if (replyCard) {
-                 // Buscamos la etiqueta que tiene el @usuario (usualmente la clase font-bold en tu HTML)
-                 const authorName = replyCard.querySelector('.font-bold').textContent;
-                 
-                 // Inyectamos el @usuario en el input para dar la sensación de hilo infinito
-                 if (!replyInput.value.includes(authorName)) {
-                     replyInput.value = `${authorName} ` + replyInput.value;
-                 }
-             }
+            if (replyCard) {
+              const usernameElement = replyCard.querySelector('.comment-username');
+              const authorName = usernameElement ? usernameElement.textContent.trim() : '';
+
+              if (authorName && !replyInput.value.includes(authorName)) {
+                replyInput.value = `${authorName} ` + replyInput.value;
+              }
+            }
          }
       });
 

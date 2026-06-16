@@ -2,30 +2,7 @@
 (() => {
   const USER_STORAGE_KEY = 'mc_users';
 
-  const DEFAULT_USERS = [
-    {
-      id: 'seed_usuario',
-      username: 'usuario',
-      displayName: 'Usuario Demo',
-      birthDate: '2000-01-01',
-      email: 'usuario@microconnect.local',
-      password: 'pass1234',
-      bio: 'Perfil de prueba de Micro-Connect.',
-      avatarDataUrl: '',
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 'seed_maria',
-      username: 'maria',
-      displayName: 'María',
-      birthDate: '2000-01-01',
-      email: 'maria@microconnect.local',
-      password: 'react2026',
-      bio: 'Perfil de prueba de Micro-Connect.',
-      avatarDataUrl: '',
-      createdAt: new Date().toISOString()
-    }
-  ];
+  const DEFAULT_USERS = [];
 
   function createId() {
     if (window.crypto && typeof window.crypto.randomUUID === 'function') {
@@ -66,28 +43,21 @@
     const raw = localStorage.getItem(USER_STORAGE_KEY);
 
     if (!raw) {
-      return saveUsers(DEFAULT_USERS);
+      return [];
     }
 
     try {
       const parsed = JSON.parse(raw);
 
       if (!Array.isArray(parsed)) {
-        return saveUsers(DEFAULT_USERS);
+        return [];
       }
 
-      const users = parsed.map(normalizeUser).filter((user) => user.username && user.password);
-
-      if (users.length === 0) {
-        return saveUsers(DEFAULT_USERS);
-      }
-
-      return users;
+      return parsed.map(normalizeUser).filter((user) => user.username && user.password);
     } catch (error) {
-      return saveUsers(DEFAULT_USERS);
+      return [];
     }
   }
-
   function findUserByUsername(username) {
     const normalized = normalizeUsername(username);
 
