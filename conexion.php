@@ -1,7 +1,7 @@
 <?php
 // conexion.php
 
-$host = "127.0.0.1:3307";
+$host = "127.0.0.1:3306"; // Asegúrate de usar el puerto correcto si es necesario
 $user = "root";
 $password = "";
 $database = "microconnect"; // El nombre que tiene en tu script SQL

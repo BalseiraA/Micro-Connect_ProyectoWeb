@@ -658,3 +658,81 @@ html.dark .register-card .text-red-700 {
 html.dark .register-card .text-green-700 {
   color: #86efac !important;
 }
+
+/* =====================
+   FIX COMENTARIOS - MODO OSCURO
+   ===================== */
+
+/* Comentario principal: burbuja */
+.comment-item > .flex-1 > div:first-child {
+  background: rgb(241 245 249);
+  color: rgb(15 23 42);
+  border-radius: 1rem;
+  border-top-left-radius: 0;
+}
+
+.dark .comment-item > .flex-1 > div:first-child {
+  background: rgb(30 41 59) !important;
+  color: rgb(248 250 252) !important;
+}
+
+/* Texto dentro del comentario principal */
+.dark .comment-item > .flex-1 > div:first-child span,
+.dark .comment-item > .flex-1 > div:first-child p {
+  color: rgb(248 250 252) !important;
+}
+
+/* La respuesta NO debe pintar el contenedor externo */
+.reply-item > div:last-child {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Burbuja real de cada respuesta */
+.reply-item > .flex-1 > div:first-child {
+  background: rgb(241 245 249) !important;
+  color: rgb(15 23 42) !important;
+  border: 1px solid rgb(226 232 240) !important;
+  border-radius: 0.875rem !important;
+  border-top-left-radius: 0 !important;
+  padding: 0.55rem 0.75rem !important;
+  box-sizing: border-box;
+}
+
+/* Burbuja de respuesta en modo oscuro */
+.dark .reply-item > .flex-1 > div:first-child {
+  background: rgb(30 41 59) !important;
+  color: rgb(248 250 252) !important;
+  border-color: rgb(51 65 85) !important;
+}
+
+/* Texto dentro de respuestas */
+.dark .reply-item > .flex-1 > div:first-child span,
+.dark .reply-item > .flex-1 > div:first-child p {
+  color: rgb(248 250 252) !important;
+}
+
+/* Tamaño y separación de respuestas */
+.reply-item > .flex-1 > div:first-child span {
+  font-size: 0.72rem;
+}
+
+.reply-item > .flex-1 > div:first-child p {
+  font-size: 0.82rem;
+  line-height: 1.25rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Inputs de comentarios en modo oscuro */
+.dark .comment-input,
+.dark .reply-input {
+  background: rgb(30 41 59) !important;
+  color: rgb(248 250 252) !important;
+}
+
+.dark .comment-input::placeholder,
+.dark .reply-input::placeholder {
+  color: rgb(148 163 184) !important;
+}
