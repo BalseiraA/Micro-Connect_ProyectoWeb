@@ -27,13 +27,19 @@ if (!isset($conexion) || !$conexion) {
     exit();
 }
 
-$idUsuarioLoggeado = $_SESSION['usuario'];
+$idUsuarioLoggeado = mysqli_real_escape_string($conexion, $_SESSION['usuario']);
 
-// 4. Consultamos las notificaciones uniendo (INNER JOIN) los datos del creador de la acción
+// 4. Consultamos las notificaciones uniendo (INNER JOIN) los datos del creador de la acción.
+//    Además unimos (LEFT JOIN) la publicación o el comentario referenciados para poder
+//    mostrar una vista previa del contenido (ej. "México campeón?") tal como en el diseño.
 $query = "SELECT n.idNotificacion, n.tipoNotificacion, n.idReferencia, n.leido, n.fechaHoraNotif, 
-                 u.idUsuario AS idOrigen, u.nombreUs AS nombreOrigen, u.fotoPerfilUs AS fotoOrigen
+                 u.idUsuario AS idOrigen, u.nombreUs AS nombreOrigen, u.fotoPerfilUs AS fotoOrigen,
+                 p.contenidoTextoPub AS textoPost,
+                 c.textoComent AS textoComentario
           FROM tNotificacion n
           INNER JOIN tUsuario u ON n.idUsuarioOrigen = u.idUsuario
+          LEFT JOIN tPublicacion p ON n.tipoNotificacion = 'like_post' AND n.idReferencia = p.idPublicacion
+          LEFT JOIN tComentario c ON n.tipoNotificacion IN ('like_comment', 'comentario_post', 'respuesta_comentario') AND n.idReferencia = c.idComentario
           WHERE n.idUsuarioDestino = '$idUsuarioLoggeado'
           ORDER BY n.fechaHoraNotif DESC 
           LIMIT 15";
@@ -47,12 +53,21 @@ if ($resultado) {
         // Usamos trim() para asegurar que no haya espacios escondidos que rompan los IFs de JavaScript
         $tipoLimpio = isset($fila['tipoNotificacion']) ? trim($fila['tipoNotificacion']) : '';
 
+        // Texto citado: viene de la publicación (like_post) o del comentario (like_comment)
+        $contenidoCitado = '';
+        if (!empty($fila['textoPost'])) {
+            $contenidoCitado = $fila['textoPost'];
+        } elseif (!empty($fila['textoComentario'])) {
+            $contenidoCitado = $fila['textoComentario'];
+        }
+
         $notificaciones[] = [
             "id" => $fila['idNotificacion'],
             "tipo" => $tipoLimpio, // Match limpio con notif.tipo en JS
             "idReferencia" => $fila['idReferencia'],
             "leido" => (int)$fila['leido'],
             "fecha" => $fila['fechaHoraNotif'],
+            "contenido" => $contenidoCitado,
             "usuario" => [
                 "id" => $fila['idOrigen'],
                 "nombre" => $fila['nombreOrigen'],

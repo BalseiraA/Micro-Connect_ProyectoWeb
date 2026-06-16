@@ -29,7 +29,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (mysqli_query($conexion, $query)) {
         // Recuperamos el ID que MySQL acaba de generar
         $nuevoIdComentario = mysqli_insert_id($conexion);
-        
+
+        // 🔔 Inserción en el Grafo de Notificaciones (mismo patrón usado en guardarLike.php)
+        $fechaHoraNotif = date("Y-m-d H:i:s");
+
+        if ($idComentarioPadre === "NULL") {
+            // Es un comentario principal -> notificamos al dueño de la publicación
+            $queryDuenoPost = mysqli_query($conexion, "SELECT idUsuario FROM tPublicacion WHERE idPublicacion = $idPublicacion");
+
+            if ($post = mysqli_fetch_assoc($queryDuenoPost)) {
+                $idUsuarioDestino = $post['idUsuario'];
+
+                // Evitamos que un usuario se auto-notifique al comentar su propio post
+                if ($idUsuario !== $idUsuarioDestino) {
+                    mysqli_query($conexion, "INSERT INTO tNotificacion (idUsuarioDestino, idUsuarioOrigen, tipoNotificacion, idReferencia, fechaHoraNotif) 
+                                             VALUES ('$idUsuarioDestino', '$idUsuario', 'comentario_post', $nuevoIdComentario, '$fechaHoraNotif')");
+                }
+            }
+        } else {
+            // Es una respuesta (anidación de un nivel) -> notificamos al dueño del comentario padre
+            $queryDuenoComent = mysqli_query($conexion, "SELECT idUsuario FROM tComentario WHERE idComentario = $idComentarioPadre");
+
+            if ($comentarioPadre = mysqli_fetch_assoc($queryDuenoComent)) {
+                $idUsuarioDestino = $comentarioPadre['idUsuario'];
+
+                if ($idUsuario !== $idUsuarioDestino) {
+                    mysqli_query($conexion, "INSERT INTO tNotificacion (idUsuarioDestino, idUsuarioOrigen, tipoNotificacion, idReferencia, fechaHoraNotif) 
+                                             VALUES ('$idUsuarioDestino', '$idUsuario', 'respuesta_comentario', $nuevoIdComentario, '$fechaHoraNotif')");
+                }
+            }
+        }
+
         echo json_encode([
             "status" => "success", 
             "message" => "Comentario registrado con éxito en MySQL.",

@@ -1268,8 +1268,135 @@
 
   // ─── Contenido: Notificaciones ─────────────────────────────────────────────
 
-  function renderNotificaciones() {
-    return `<div class="max-w-xl mx-auto"><p class="text-slate-400 text-center py-10">No tienes notificaciones nuevas.</p></div>`;
+  function renderNotificacionesLoading() {
+    return `<div class="max-w-xl mx-auto"><p class="text-slate-400 text-center py-10">Cargando notificaciones...</p></div>`;
+  }
+
+  function notificationMeta(tipo) {
+    if (tipo === 'like_post') return { texto: 'le dio like a tu publicación', icono: '❤️' };
+    if (tipo === 'like_comment') return { texto: 'le dio like a tu comentario', icono: '❤️' };
+    if (tipo === 'comentario_post') return { texto: 'comentó tu publicación', icono: '💬' };
+    if (tipo === 'respuesta_comentario') return { texto: 'respondió tu comentario', icono: '💬' };
+
+    return { texto: 'interactuó contigo', icono: '🔔' };
+  }
+
+  function notificationCardHTML(notif) {
+    const usuario = notif.usuario || {};
+    const nombre = sanitize(usuario.nombre || 'alguien');
+    const userParaAvatar = {
+      username: usuario.nombre,
+      displayName: usuario.nombre,
+      avatarDataUrl: usuario.foto || ''
+    };
+
+    const { texto, icono } = notificationMeta(notif.tipo);
+    const contenido = sanitize(notif.contenido || '');
+
+    return `
+      <div class="flex items-start gap-3 p-4 rounded-2xl bg-blue-50 dark:bg-slate-900 border border-blue-100 dark:border-slate-800">
+        ${avatarHTML(userParaAvatar, 'w-10 h-10 text-base')}
+        <div class="min-w-0 flex-1">
+          <p class="text-sm text-slate-700 dark:text-slate-200 leading-snug">
+            <span class="mr-1">${icono}</span><strong>@${nombre}</strong> ${texto}
+          </p>
+          ${contenido ? `<p class="text-sm text-slate-400 dark:text-slate-500 mt-1 truncate">"${contenido}"</p>` : ''}
+          <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">${timeAgo(notif.fecha)}</p>
+        </div>
+      </div>`;
+  }
+
+  function renderNotificacionesHeader(total) {
+    const etiqueta = total === 1 ? '1 notificación' : `${total} notificaciones`;
+
+    return `
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-slate-500 dark:text-slate-400 text-sm">${etiqueta}</p>
+        ${total > 0 ? `<button id="btnLimpiarNotificaciones" class="text-red-500 hover:text-red-600 text-sm font-semibold transition">Limpiar todo</button>` : ''}
+      </div>`;
+  }
+
+  async function fetchNotificaciones() {
+    try {
+      const respuesta = await fetch('obtenerNotificaciones.php');
+      const resultado = await respuesta.json();
+
+      if (resultado.status === 'success') return resultado.data;
+
+      console.warn('No se pudieron obtener notificaciones:', resultado.message);
+      return [];
+    } catch (error) {
+      console.error('Error de red al consultar notificaciones:', error);
+      return null;
+    }
+  }
+
+  function updateNotificationsBadge(notificaciones) {
+    const badge = document.getElementById('badgeNotificaciones');
+
+    if (!badge) return;
+
+    const noLeidas = Array.isArray(notificaciones)
+      ? notificaciones.filter(notif => notif.leido === 0).length
+      : 0;
+
+    if (noLeidas > 0) {
+      badge.textContent = noLeidas;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
+
+  async function mountNotificaciones(container) {
+    container.innerHTML = renderNotificacionesLoading();
+
+    const notificaciones = await fetchNotificaciones();
+
+    updateNotificationsBadge(notificaciones);
+
+    if (notificaciones === null) {
+      container.innerHTML = `<div class="max-w-xl mx-auto"><p class="text-red-400 text-center py-10">No se pudieron cargar las notificaciones.</p></div>`;
+      return;
+    }
+
+    if (notificaciones.length === 0) {
+      container.innerHTML = `
+        <div class="max-w-xl mx-auto">
+          ${renderNotificacionesHeader(0)}
+          <p class="text-slate-400 text-center py-10">No tienes notificaciones nuevas.</p>
+        </div>`;
+      return;
+    }
+
+    const tarjetas = notificaciones.map(notificationCardHTML).join('');
+
+    container.innerHTML = `
+      <div class="max-w-xl mx-auto">
+        ${renderNotificacionesHeader(notificaciones.length)}
+        <div class="space-y-3">${tarjetas}</div>
+      </div>`;
+
+    document.getElementById('btnLimpiarNotificaciones')?.addEventListener('click', async event => {
+      const boton = event.currentTarget;
+
+      boton.disabled = true;
+      boton.textContent = 'Limpiando...';
+
+      try {
+        await fetch('limpiarNotificaciones.php', { method: 'POST' });
+      } catch (error) {
+        console.error('Error al limpiar notificaciones:', error);
+      }
+
+      mountNotificaciones(container);
+    });
+  }
+
+  async function refreshNotificationsBadge() {
+    const notificaciones = await fetchNotificaciones();
+
+    if (notificaciones !== null) updateNotificationsBadge(notificaciones);
   }
 
   // ─── Contenido: Configuración ──────────────────────────────────────────────
@@ -1346,7 +1473,7 @@
         break;
 
       case 'notificaciones':
-        content.innerHTML = renderNotificaciones();
+        mountNotificaciones(content);
         break;
 
       case 'perfil':
@@ -1435,6 +1562,9 @@
 
     renderSidebarUser(user);
     initMobileSidebar();
+
+    refreshNotificationsBadge();
+    setInterval(refreshNotificationsBadge, 15000);
 
     const tabs = document.querySelectorAll('.tab-btn');
 
