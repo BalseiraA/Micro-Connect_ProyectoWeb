@@ -94,7 +94,17 @@ CREATE TABLE tLikeComentario (
         FOREIGN KEY (idComentario) REFERENCES tComentario(idComentario) 
         ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE = INNODB COMMENT 'Tabla que contiene todos los likes a comentarios';
-
+CREATE TABLE tNotificacion (
+    idNotificacion INT AUTO_INCREMENT PRIMARY KEY,
+    tipoNotificacion VARCHAR(50) NOT NULL,
+    idReferencia INT NOT NULL,
+    leido TINYINT(1) DEFAULT 0,
+    fechaHoraNotif TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    idUsuarioOrigen VARCHAR(50) NOT NULL,
+    idUsuarioDestino VARCHAR(50) NOT NULL,
+    FOREIGN KEY (idUsuarioOrigen) REFERENCES tusuario(idUsuario) ON DELETE CASCADE,
+    FOREIGN KEY (idUsuarioDestino) REFERENCES tusuario(idUsuario) ON DELETE CASCADE
+);
 
 /*
 Creación de idComentarioPadre para referenciar comentarios y poder validar si es padre o hijo
@@ -107,3 +117,4 @@ ADD CONSTRAINT fkComentarioPadre
     FOREIGN KEY (idComentarioPadre) REFERENCES tComentario(idComentario)
     ON UPDATE CASCADE ON DELETE CASCADE;
 */
+
