@@ -1,7 +1,7 @@
 <?php
 // conexion.php
 
-$host = "localhost";
+$host = "127.0.0.1:3307";
 $user = "root";
 $password = "";
 $database = "microconnect"; // El nombre que tiene en tu script SQL

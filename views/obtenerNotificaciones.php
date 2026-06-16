@@ -1,18 +1,35 @@
 <?php
+// 1. Desactivar la visualización de errores HTML para que NO rompan el JSON de JavaScript
+error_reporting(0);
+ini_set('display_errors', 0);
+
 session_start();
 header('Content-Type: application/json');
 
-// 1. Validamos que el usuario tenga una sesión activa
+// 2. Validamos que el usuario tenga una sesión activa
 if (!isset($_SESSION['usuario'])) {
     echo json_encode(["status" => "error", "message" => "No autorizado o sesión expirada."]);
     exit();
 }
 
-include("../conexion.php");
+// 3. Inclusión segura del archivo de conexión usando rutas absolutas del servidor
+$rutaConexion = dirname(__DIR__) . '/conexion.php';
+if (file_exists($rutaConexion)) {
+    include($rutaConexion);
+} else {
+    echo json_encode(["status" => "error", "message" => "No se encontró el archivo conexion.php en: " . $rutaConexion]);
+    exit();
+}
+
+// Validar que la variable de conexión exista
+if (!isset($conexion) || !$conexion) {
+    echo json_encode(["status" => "error", "message" => "La variable de conexión no está disponible."]);
+    exit();
+}
 
 $idUsuarioLoggeado = $_SESSION['usuario'];
 
-// 2. Consultamos las notificaciones uniendo (INNER JOIN) los datos del creador de la acción
+// 4. Consultamos las notificaciones uniendo (INNER JOIN) los datos del creador de la acción
 $query = "SELECT n.idNotificacion, n.tipoNotificacion, n.idReferencia, n.leido, n.fechaHoraNotif, 
                  u.idUsuario AS idOrigen, u.nombreUs AS nombreOrigen, u.fotoPerfilUs AS fotoOrigen
           FROM tNotificacion n
@@ -41,9 +58,14 @@ if ($resultado) {
         ];
     }
     
-    // Devolvemos el arreglo estructurado en formato JSON
+    // Devolvemos el arreglo estructurado en formato JSON limpio
     echo json_encode(["status" => "success", "data" => $notificaciones]);
 } else {
-    echo json_encode(["status" => "error", "message" => "Error al consultar notificaciones: " . mysqli_error($conexion)]);
+    // Si la consulta falla (por ejemplo, si un nombre de columna no coincide), lo mandamos como un JSON válido
+    echo json_encode([
+        "status" => "error", 
+        "message" => "Error en la consulta SQL. Verifica las columnas de tNotificacion.",
+        "sql_error" => mysqli_error($conexion)
+    ]);
 }
 ?>
