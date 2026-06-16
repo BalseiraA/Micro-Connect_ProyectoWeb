@@ -44,9 +44,12 @@ if ($resultado) {
     $notificaciones = [];
     
     while ($fila = mysqli_fetch_assoc($resultado)) {
+        // Usamos trim() para asegurar que no haya espacios escondidos que rompan los IFs de JavaScript
+        $tipoLimpio = isset($fila['tipoNotificacion']) ? trim($fila['tipoNotificacion']) : '';
+
         $notificaciones[] = [
             "id" => $fila['idNotificacion'],
-            "tipo" => $fila['tipoNotificacion'],
+            "tipo" => $tipoLimpio, // Match limpio con notif.tipo en JS
             "idReferencia" => $fila['idReferencia'],
             "leido" => (int)$fila['leido'],
             "fecha" => $fila['fechaHoraNotif'],
@@ -61,7 +64,7 @@ if ($resultado) {
     // Devolvemos el arreglo estructurado en formato JSON limpio
     echo json_encode(["status" => "success", "data" => $notificaciones]);
 } else {
-    // Si la consulta falla (por ejemplo, si un nombre de columna no coincide), lo mandamos como un JSON válido
+    // Si la consulta falla, lo mandamos como un JSON válido
     echo json_encode([
         "status" => "error", 
         "message" => "Error en la consulta SQL. Verifica las columnas de tNotificacion.",
