@@ -304,10 +304,75 @@
     }, 0);
   }
 
-  function deletePost(postId, username) {
-    const posts = getPosts().filter(p => !(String(p.id) === String(postId) && p.author === username));
-    savePosts(posts);
+  function removePostFromLocal(postId, username) {
+  const posts = getPosts().filter(post => {
+    return !(String(post.id) === String(postId) && post.author === username);
+  });
+
+  savePosts(posts);
+}
+
+async function deletePost(postId, username) {
+  const posts = getPosts();
+  const post = posts.find(p => String(p.id) === String(postId));
+
+  if (!post) {
+    return {
+      success: false,
+      message: 'No se encontró la publicación en la vista actual.'
+    };
   }
+
+  if (post.author !== username) {
+    return {
+      success: false,
+      message: 'No puedes eliminar una publicación que no es tuya.'
+    };
+  }
+
+  // Esto puede pasar si se elimina inmediatamente después de publicar, antes de que responda guardarPost.php.
+  if (!/^\d+$/.test(String(postId))) {
+    removePostFromLocal(postId, username);
+
+    return {
+      success: true,
+      message: 'Publicación eliminada localmente.'
+    };
+  }
+
+  const formData = new FormData();
+  formData.append('postId', postId);
+
+  try {
+    const response = await fetch('eliminarPost.php', {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (data.status === 'success') {
+      removePostFromLocal(postId, username);
+
+      return {
+        success: true,
+        message: data.message || 'Publicación eliminada correctamente.'
+      };
+    }
+
+    return {
+      success: false,
+      message: data.message || 'No se pudo eliminar la publicación.'
+    };
+  } catch (error) {
+    console.error('Error al eliminar publicación:', error);
+
+    return {
+      success: false,
+      message: 'Error de red al intentar eliminar la publicación.'
+    };
+  }
+}
 
   // ─── Avatar helper ─────────────────────────────────────────────────────────
 
@@ -678,11 +743,31 @@
       }
     });
 
-    card.querySelector('.delete-post-btn')?.addEventListener('click', () => {
+    card.querySelector('.delete-post-btn')?.addEventListener('click', async () => {
       if (!confirm('¿Eliminar esta publicación?')) return;
+
+      const deleteBtn = card.querySelector('.delete-post-btn');
       const currentPostId = card.dataset.postId;
-      deletePost(currentPostId, currentUser.username);
-      card.remove();
+
+      if (deleteBtn) {
+        deleteBtn.disabled = true;
+        deleteBtn.textContent = '⌛';
+        deleteBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      }
+
+      const result = await deletePost(currentPostId, currentUser.username);
+
+      if (result.success) {
+        card.remove();
+      } else {
+        alert(result.message || 'No se pudo eliminar la publicación.');
+
+        if (deleteBtn) {
+          deleteBtn.disabled = false;
+          deleteBtn.textContent = '🗑';
+          deleteBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+      }
     });
   }
 
