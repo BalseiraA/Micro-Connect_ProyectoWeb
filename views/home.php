@@ -170,7 +170,10 @@ $jsonPosts = json_encode($postsArray);
       </div>
       <nav class="space-y-2" id="menuTabs" role="navigation" aria-label="Menú principal">
         <button data-tab="inicio" class="tab-btn w-full text-left px-4 py-3 rounded-xl active-tab">Inicio</button>
-        <button data-tab="notificaciones" class="tab-btn w-full text-left px-4 py-3 rounded-xl">Notificaciones</button>
+        <button data-tab="notificaciones" class="tab-btn w-full flex items-center justify-between px-4 py-3 rounded-xl">
+          <span>Notificaciones</span>
+          <span id="badgeNotificaciones" class="hidden bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">0</span>
+        </button>
         <button data-tab="perfil" class="tab-btn w-full text-left px-4 py-3 rounded-xl">Mi Perfil</button>
         <button data-tab="configuracion" class="tab-btn w-full text-left px-4 py-3 rounded-xl">Configuración</button>
       </nav>
@@ -352,5 +355,44 @@ $jsonPosts = json_encode($postsArray);
 
   <script defer src="../assets/js/home.js"></script>
   <script defer src="../assets/js/myProfile.js"></script>
+
+  <script>
+    (function() {
+      // Función asíncrona que consume el endpoint PHP de manera recurrente
+      async function consultarNotificacionesNuevas() {
+        try {
+          const respuesta = await fetch('obtenerNotificaciones.php');
+          const resultado = await respuesta.json();
+
+          if (resultado.status === 'success') {
+            // Contamos cuántas notificaciones en el arreglo vienen como "no leídas" (leido === 0)
+            const noLeidas = resultado.data.filter(notif => notif.leido === 0).length;
+            const badge = document.getElementById('badgeNotificaciones');
+
+            if (badge) {
+              if (noLeidas > 0) {
+                badge.innerText = noLeidas;
+                badge.classList.remove('hidden'); // Mostramos el contador flotante rojo
+              } else {
+                badge.classList.add('hidden');    // Ocultamos si no hay nuevas
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error concurrente en el módulo de notificaciones:", error);
+        }
+      }
+
+      // 1. Ejecución inmediata al cargar la página
+      document.addEventListener('DOMContentLoaded', () => {
+        consultarNotificacionesNuevas();
+        
+        // 2. Proceso Concurrente: Consulta asíncrona en segundo plano cada 15 segundos
+        // Satisface los requerimientos de sincronía de datos sin saturar el servidor apache
+        setInterval(consultarNotificacionesNuevas, 15000);
+      });
+    })();
+  </script>
+  
 </body>
 </html>
