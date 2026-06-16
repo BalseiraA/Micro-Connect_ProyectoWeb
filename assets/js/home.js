@@ -3,11 +3,14 @@
   const SESSION_USER_KEY = 'mc_user';
   const POSTS_KEY = 'mc_posts';
 
+  let hydratedFromServer = false;
+
   // ─── Utilidades compartidas ────────────────────────────────────────────────
 
   function getCurrentUser() {
     const username = sessionStorage.getItem(SESSION_USER_KEY);
     if (!username) return null;
+
     const store = window.MicroConnectApp?.userStore;
     return store ? store.findUserByUsername(username) : null;
   }
@@ -20,20 +23,13 @@
     if (!dateString) return 'ahora mismo';
 
     const value = String(dateString).trim();
-
-    // Soporta fechas de MySQL: "2026-06-16 20:44:52"
-    // y fechas JS ISO: "2026-06-16T20:44:52.000Z"
     const normalizedValue = value.includes('T') ? value : value.replace(' ', 'T');
-
     const date = new Date(normalizedValue);
 
-    if (Number.isNaN(date.getTime())) {
-      return 'ahora mismo';
-    }
+    if (Number.isNaN(date.getTime())) return 'ahora mismo';
 
     const diff = Date.now() - date.getTime();
 
-    // Si por zona horaria quedó en el futuro, no mostramos negativo.
     if (diff < 0) return 'ahora mismo';
 
     const seconds = Math.floor(diff / 1000);
@@ -57,24 +53,122 @@
     return window.crypto?.randomUUID?.() || `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   }
 
+  function getServerPosts() {
+    return Array.isArray(window.__MICROCONNECT_POSTS_BASE__)
+      ? window.__MICROCONNECT_POSTS_BASE__
+      : [];
+  }
+
+  function getServerPostById(postId) {
+    return getServerPosts().find(post => String(post.id) === String(postId));
+  }
+
+  function getPostMediaData(post) {
+    if (post?.mediaDataUrl) return post.mediaDataUrl;
+
+    const serverPost = getServerPostById(post?.id);
+    return serverPost?.mediaDataUrl || '';
+  }
+
+  function makeLightComment(comment) {
+    return {
+      id: comment.id,
+      parentId: comment.parentId ?? null,
+      author: comment.author,
+      text: comment.text || '',
+      createdAt: comment.createdAt || new Date().toISOString(),
+      likes: Array.isArray(comment.likes) ? comment.likes : [],
+      replies: Array.isArray(comment.replies) ? comment.replies.map(makeLightComment) : [],
+      commentAuthorDisplayName: comment.commentAuthorDisplayName || comment.author,
+      commentAuthorAvatar: ''
+    };
+  }
+
+  function makeLightPost(post) {
+    return {
+      id: post.id,
+      author: post.author,
+      authorDisplayName: post.authorDisplayName || post.author,
+      authorAvatar: '',
+      text: post.text || '',
+      createdAt: post.createdAt || new Date().toISOString(),
+      mediaType: post.mediaType || '',
+      mediaDataUrl: '',
+      likes: Array.isArray(post.likes) ? post.likes : [],
+      comments: Array.isArray(post.comments) ? post.comments.map(makeLightComment) : []
+    };
+  }
+
+  function hydratePostsFromServer() {
+    if (hydratedFromServer) return;
+
+    hydratedFromServer = true;
+
+    const serverPosts = getServerPosts();
+
+    if (!serverPosts.length) return;
+
+    const lightPosts = serverPosts.map(makeLightPost);
+
+    try {
+      localStorage.setItem(POSTS_KEY, JSON.stringify(lightPosts));
+    } catch (error) {
+      console.warn('No se pudo sincronizar mc_posts en localStorage:', error);
+      localStorage.removeItem(POSTS_KEY);
+    }
+  }
+
   // ─── Posts store ───────────────────────────────────────────────────────────
 
   function getPosts() {
+    hydratePostsFromServer();
+
     try {
       const raw = localStorage.getItem(POSTS_KEY);
-      return raw ? JSON.parse(raw) : [];
+      const parsed = raw ? JSON.parse(raw) : [];
+
+      if (!Array.isArray(parsed)) return [];
+
+      return parsed;
     } catch {
       return [];
     }
   }
 
   function savePosts(posts) {
-    localStorage.setItem(POSTS_KEY, JSON.stringify(posts));
+    const lightPosts = Array.isArray(posts) ? posts.map(makeLightPost) : [];
+
+    try {
+      localStorage.setItem(POSTS_KEY, JSON.stringify(lightPosts));
+    } catch (error) {
+      console.warn('LocalStorage lleno. Se guardará una versión ligera de las publicaciones.', error);
+
+      try {
+        const ultraLightPosts = lightPosts.map(post => ({
+          ...post,
+          mediaDataUrl: '',
+          authorAvatar: '',
+          comments: (post.comments || []).map(comment => ({
+            ...comment,
+            commentAuthorAvatar: '',
+            replies: (comment.replies || []).map(reply => ({
+              ...reply,
+              commentAuthorAvatar: ''
+            }))
+          }))
+        }));
+
+        localStorage.setItem(POSTS_KEY, JSON.stringify(ultraLightPosts));
+      } catch (secondError) {
+        console.error('No se pudo guardar mc_posts en localStorage.', secondError);
+        localStorage.removeItem(POSTS_KEY);
+      }
+    }
   }
 
   function addPost(author, text, mediaDataUrl, mediaType) {
     const posts = getPosts();
-    const provisionalId = createId(); 
+    const provisionalId = createId();
 
     const currentUserData = window.MicroConnectApp?.userStore?.findUserByUsername(author);
 
@@ -92,50 +186,53 @@
     };
 
     posts.unshift(post);
+
+    // Esta función ya guarda versión ligera, sin Base64.
     savePosts(posts);
 
     const formData = new FormData();
-    formData.append('text', text);
+    formData.append('text', text || '');
 
     const imageInput = document.getElementById('postImageInput');
     const videoInput = document.getElementById('postVideoInput');
-    
+
     if (imageInput && imageInput.files.length > 0) {
-        formData.append('postMedia', imageInput.files[0]);
+      formData.append('postMedia', imageInput.files[0]);
     } else if (videoInput && videoInput.files.length > 0) {
-        formData.append('postMedia', videoInput.files[0]);
+      formData.append('postMedia', videoInput.files[0]);
     }
 
     fetch('guardarPost.php', {
       method: 'POST',
       body: formData
     })
-    .then(res => res.text())
-    .then(respuesta => {
-      // Intentamos convertir la respuesta en un número entero
-      const idNumerico = parseInt(respuesta, 10);
-      
-      // Si es un número válido mayor a 0, significa que MySQL guardó el dato con éxito
-      if (!isNaN(idNumerico) && idNumerico > 0) {
-        post.id = idNumerico;
-        
-        const postsActualizados = getPosts();
-        const postEncontrado = postsActualizados.find(p => p.createdAt === post.createdAt);
-        if (postEncontrado) {
-          postEncontrado.id = idNumerico;
-          savePosts(postsActualizados);
+      .then(res => res.text())
+      .then(respuesta => {
+        const idNumerico = parseInt(respuesta, 10);
+
+        if (!Number.isNaN(idNumerico) && idNumerico > 0) {
+          const postsActualizados = getPosts();
+          const postEncontrado = postsActualizados.find(p => p.id === provisionalId || p.createdAt === post.createdAt);
+
+          if (postEncontrado) {
+            postEncontrado.id = idNumerico;
+            savePosts(postsActualizados);
+          }
+
+          const tarjetaPost = document.querySelector(`[data-post-id="${provisionalId}"]`);
+
+          if (tarjetaPost) {
+            tarjetaPost.dataset.postId = idNumerico;
+          }
+        } else {
+          console.error('❌ Error de MySQL/PHP al intentar guardar:', respuesta);
+          alert('La publicación se mostró en pantalla, pero no se guardó correctamente en la base de datos.');
         }
-        
-        const tarjetaPost = document.querySelector(`[data-post-id="${provisionalId}"]`);
-        if (tarjetaPost) {
-          tarjetaPost.dataset.postId = idNumerico;
-        }
-      } else {
-        // Si no es un número, significa que PHP nos devolvió el error exacto de MySQL
-        console.error('❌ Error de MySQL al intentar guardar:', respuesta);
-      }
-    })
-    .catch(err => console.error('❌ Error de red al comunicar con PHP:', err));
+      })
+      .catch(err => {
+        console.error('❌ Error de red al comunicar con PHP:', err);
+        alert('La publicación se mostró en pantalla, pero ocurrió un error de red al guardarla.');
+      });
 
     return post;
   }
@@ -143,9 +240,13 @@
   function toggleLike(postId, username) {
     const posts = getPosts();
     const post = posts.find(p => String(p.id) === String(postId));
-    if (!post) return;
+
+    if (!post) return null;
+
+    post.likes = Array.isArray(post.likes) ? post.likes : [];
 
     const idx = post.likes.indexOf(username);
+
     if (idx === -1) post.likes.push(username);
     else post.likes.splice(idx, 1);
 
@@ -155,8 +256,10 @@
     formData.append('type', 'post');
     formData.append('postId', postId);
 
-    fetch('guardarLike.php', { method: 'POST', body: formData })
-    .catch(err => console.error('Error de red al registrar Like:', err));
+    fetch('guardarLike.php', {
+      method: 'POST',
+      body: formData
+    }).catch(err => console.error('Error de red al registrar Like:', err));
 
     return post;
   }
@@ -164,24 +267,33 @@
   function toggleCommentLike(postId, commentId, username) {
     const posts = getPosts();
     const post = posts.find(p => String(p.id) === String(postId));
+
     if (!post) return null;
 
     let targetComment = null;
-    
-    for (const c of post.comments) {
-        if (String(c.id) === String(commentId)) {
-            targetComment = c; break;
+
+    for (const comment of post.comments || []) {
+      if (String(comment.id) === String(commentId)) {
+        targetComment = comment;
+        break;
+      }
+
+      if (Array.isArray(comment.replies)) {
+        const reply = comment.replies.find(rep => String(rep.id) === String(commentId));
+
+        if (reply) {
+          targetComment = reply;
+          break;
         }
-        if (c.replies) {
-            const r = c.replies.find(rep => String(rep.id) === String(commentId));
-            if (r) { targetComment = r; break; }
-        }
+      }
     }
 
     if (!targetComment) return null;
 
-    targetComment.likes = targetComment.likes || [];
+    targetComment.likes = Array.isArray(targetComment.likes) ? targetComment.likes : [];
+
     const idx = targetComment.likes.indexOf(username);
+
     if (idx === -1) targetComment.likes.push(username);
     else targetComment.likes.splice(idx, 1);
 
@@ -191,8 +303,10 @@
     formData.append('type', 'comment');
     formData.append('commentId', commentId);
 
-    fetch('guardarLike.php', { method: 'POST', body: formData })
-    .catch(err => console.error('Error al registrar Like en comentario:', err));
+    fetch('guardarLike.php', {
+      method: 'POST',
+      body: formData
+    }).catch(err => console.error('Error al registrar Like en comentario:', err));
 
     return targetComment;
   }
@@ -200,18 +314,23 @@
   function addComment(postId, author, text) {
     const posts = getPosts();
     const post = posts.find(p => String(p.id) === String(postId));
-    if (!post) return;
+
+    if (!post) return null;
 
     if (!Array.isArray(post.comments)) post.comments = [];
 
+    const currentUserData = window.MicroConnectApp?.userStore?.findUserByUsername(author);
     const provisionalId = createId();
+
     const nuevoComentario = {
       id: provisionalId,
       author,
       text: sanitize(text),
       replies: [],
       likes: [],
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      commentAuthorDisplayName: currentUserData?.displayName || author,
+      commentAuthorAvatar: currentUserData?.avatarDataUrl || ''
     };
 
     post.comments.push(nuevoComentario);
@@ -221,26 +340,41 @@
     formData.append('postId', postId);
     formData.append('text', text);
 
-    fetch('guardarComentario.php', { method: 'POST', body: formData })
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === 'success' && data.idComentario) {
-        const idReal = parseInt(data.idComentario, 10);
-        
-        const postsAct = getPosts();
-        const p = postsAct.find(p => String(p.id) === String(postId));
-        if(p) {
-           const c = p.comments.find(c => c.id === provisionalId);
-           if(c) { c.id = idReal; savePosts(postsAct); }
-        }
+    fetch('guardarComentario.php', {
+      method: 'POST',
+      body: formData
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success' && data.idComentario) {
+          const idReal = parseInt(data.idComentario, 10);
+          const postsAct = getPosts();
+          const p = postsAct.find(p => String(p.id) === String(postId));
 
-        const domComment = document.querySelector(`[data-comment-id="${provisionalId}"]`);
-        if (domComment) {
+          if (p) {
+            const c = p.comments.find(c => c.id === provisionalId);
+
+            if (c) {
+              c.id = idReal;
+              savePosts(postsAct);
+            }
+          }
+
+          const domComment = document.querySelector(`[data-comment-id="${provisionalId}"]`);
+
+          if (domComment) {
             domComment.dataset.commentId = idReal;
-            domComment.querySelectorAll(`[data-comment-id="${provisionalId}"]`).forEach(el => el.dataset.commentId = idReal);
+            domComment.querySelectorAll(`[data-comment-id="${provisionalId}"]`).forEach(el => {
+              el.dataset.commentId = idReal;
+            });
+
+            domComment.querySelectorAll('.like-comment-btn').forEach(btn => {
+              btn.dataset.commentId = idReal;
+            });
+          }
         }
-      }
-    });
+      })
+      .catch(err => console.error('Error al guardar comentario:', err));
 
     return post;
   }
@@ -248,20 +382,27 @@
   function addReply(postId, commentId, author, text) {
     const posts = getPosts();
     const post = posts.find(p => String(p.id) === String(postId));
-    if (!post || !Array.isArray(post.comments)) return;
+
+    if (!post || !Array.isArray(post.comments)) return null;
 
     const comment = post.comments.find(c => String(c.id) === String(commentId));
-    if (!comment) return;
+
+    if (!comment) return null;
 
     if (!Array.isArray(comment.replies)) comment.replies = [];
 
+    const currentUserData = window.MicroConnectApp?.userStore?.findUserByUsername(author);
     const provisionalId = createId();
+
     const reply = {
       id: provisionalId,
+      parentId: commentId,
       author,
       text: sanitize(text),
       likes: [],
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      commentAuthorDisplayName: currentUserData?.displayName || author,
+      commentAuthorAvatar: currentUserData?.avatarDataUrl || ''
     };
 
     comment.replies.push(reply);
@@ -272,28 +413,41 @@
     formData.append('text', text);
     formData.append('parentId', commentId);
 
-    fetch('guardarComentario.php', { method: 'POST', body: formData })
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === 'success' && data.idComentario) {
-        const idReal = parseInt(data.idComentario, 10);
-        const postsAct = getPosts();
-        const p = postsAct.find(p => String(p.id) === String(postId));
-        if(p) {
-           const c = p.comments.find(c => String(c.id) === String(commentId));
-           if(c) {
-               const r = c.replies.find(r => r.id === provisionalId);
-               if(r) { r.id = idReal; savePosts(postsAct); }
-           }
-        }
-        
-        const domReply = document.querySelector(`[data-comment-id="${provisionalId}"]`);
-        if(domReply) {
+    fetch('guardarComentario.php', {
+      method: 'POST',
+      body: formData
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success' && data.idComentario) {
+          const idReal = parseInt(data.idComentario, 10);
+          const postsAct = getPosts();
+          const p = postsAct.find(p => String(p.id) === String(postId));
+
+          if (p) {
+            const c = p.comments.find(c => String(c.id) === String(commentId));
+
+            if (c) {
+              const r = c.replies.find(r => r.id === provisionalId);
+
+              if (r) {
+                r.id = idReal;
+                savePosts(postsAct);
+              }
+            }
+          }
+
+          const domReply = document.querySelector(`[data-comment-id="${provisionalId}"]`);
+
+          if (domReply) {
             domReply.dataset.commentId = idReal;
-            domReply.querySelectorAll('.like-comment-btn').forEach(btn => btn.dataset.commentId = idReal);
+            domReply.querySelectorAll('.like-comment-btn').forEach(btn => {
+              btn.dataset.commentId = idReal;
+            });
+          }
         }
-      }
-    });
+      })
+      .catch(err => console.error('Error al guardar respuesta:', err));
 
     return { post, comment, reply };
   }
@@ -305,81 +459,79 @@
   }
 
   function removePostFromLocal(postId, username) {
-  const posts = getPosts().filter(post => {
-    return !(String(post.id) === String(postId) && post.author === username);
-  });
-
-  savePosts(posts);
-}
-
-async function deletePost(postId, username) {
-  const posts = getPosts();
-  const post = posts.find(p => String(p.id) === String(postId));
-
-  if (!post) {
-    return {
-      success: false,
-      message: 'No se encontró la publicación en la vista actual.'
-    };
-  }
-
-  if (post.author !== username) {
-    return {
-      success: false,
-      message: 'No puedes eliminar una publicación que no es tuya.'
-    };
-  }
-
-  // Esto puede pasar si se elimina inmediatamente después de publicar, antes de que responda guardarPost.php.
-  if (!/^\d+$/.test(String(postId))) {
-    removePostFromLocal(postId, username);
-
-    return {
-      success: true,
-      message: 'Publicación eliminada localmente.'
-    };
-  }
-
-  const formData = new FormData();
-  formData.append('postId', postId);
-
-  try {
-    const response = await fetch('eliminarPost.php', {
-      method: 'POST',
-      body: formData
+    const posts = getPosts().filter(post => {
+      return !(String(post.id) === String(postId) && post.author === username);
     });
 
-    const data = await response.json();
+    savePosts(posts);
+  }
 
-    if (data.status === 'success') {
+  async function deletePost(postId, username) {
+    const posts = getPosts();
+    const post = posts.find(p => String(p.id) === String(postId));
+
+    if (!post) {
+      return {
+        success: false,
+        message: 'No se encontró la publicación en la vista actual.'
+      };
+    }
+
+    if (post.author !== username) {
+      return {
+        success: false,
+        message: 'No puedes eliminar una publicación que no es tuya.'
+      };
+    }
+
+    if (!/^\d+$/.test(String(postId))) {
       removePostFromLocal(postId, username);
 
       return {
         success: true,
-        message: data.message || 'Publicación eliminada correctamente.'
+        message: 'Publicación eliminada localmente.'
       };
     }
 
-    return {
-      success: false,
-      message: data.message || 'No se pudo eliminar la publicación.'
-    };
-  } catch (error) {
-    console.error('Error al eliminar publicación:', error);
+    const formData = new FormData();
+    formData.append('postId', postId);
 
-    return {
-      success: false,
-      message: 'Error de red al intentar eliminar la publicación.'
-    };
+    try {
+      const response = await fetch('eliminarPost.php', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        removePostFromLocal(postId, username);
+
+        return {
+          success: true,
+          message: data.message || 'Publicación eliminada correctamente.'
+        };
+      }
+
+      return {
+        success: false,
+        message: data.message || 'No se pudo eliminar la publicación.'
+      };
+    } catch (error) {
+      console.error('Error al eliminar publicación:', error);
+
+      return {
+        success: false,
+        message: 'Error de red al intentar eliminar la publicación.'
+      };
+    }
   }
-}
 
   // ─── Avatar helper ─────────────────────────────────────────────────────────
 
   function avatarHTML(user, size = 'w-10 h-10 text-base') {
     function getAvatarStyle(sizeClass) {
       const value = String(sizeClass || '');
-
       let dimensions = 'width:2.5rem;height:2.5rem;min-width:2.5rem;font-size:1rem;';
 
       if (value.includes('w-6') || value.includes('h-6')) {
@@ -425,7 +577,110 @@ async function deletePost(postId, username) {
 
   function renderSidebarUser(user) {
     const tag = document.querySelector('aside .rounded-xl p');
+
     if (tag && user) tag.textContent = `@${user.username}`;
+  }
+
+  // ─── Visor de multimedia ───────────────────────────────────────────────────
+
+  function openMediaViewer(mediaSrc, mediaType = 'image') {
+    if (!mediaSrc) return;
+
+    document.getElementById('mediaViewerModal')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'mediaViewerModal';
+    modal.style.position = 'fixed';
+    modal.style.inset = '0';
+    modal.style.zIndex = '9999';
+    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.96)';
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    modal.style.padding = '1rem';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.innerHTML = '<span style="display:block;line-height:1;transform:translateY(-3px);">×</span>';
+    closeBtn.setAttribute('aria-label', 'Cerrar vista de multimedia');
+    closeBtn.style.position = 'fixed';
+    closeBtn.style.top = '1rem';
+    closeBtn.style.left = '1rem';
+    closeBtn.style.width = '3rem';
+    closeBtn.style.height = '3rem';
+    closeBtn.style.borderRadius = '9999px';
+    closeBtn.style.border = 'none';
+    closeBtn.style.background = 'rgba(255, 255, 255, 0.12)';
+    closeBtn.style.color = '#ffffff';
+    closeBtn.style.fontSize = '2rem';
+    closeBtn.style.lineHeight = '1';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.style.zIndex = '10000';
+    closeBtn.style.display = 'flex';
+    closeBtn.style.alignItems = 'center';
+    closeBtn.style.justifyContent = 'center';
+    closeBtn.style.padding = '0';
+    closeBtn.style.margin = '0';
+
+    const contentWrapper = document.createElement('div');
+    contentWrapper.style.width = '100%';
+    contentWrapper.style.height = '100%';
+    contentWrapper.style.display = 'flex';
+    contentWrapper.style.alignItems = 'center';
+    contentWrapper.style.justifyContent = 'center';
+
+    if (mediaType === 'video') {
+      const video = document.createElement('video');
+      video.src = mediaSrc;
+      video.controls = true;
+      video.autoplay = true;
+      video.style.maxWidth = '100%';
+      video.style.maxHeight = '95vh';
+      video.style.objectFit = 'contain';
+      video.style.borderRadius = '0.5rem';
+      video.style.backgroundColor = '#000000';
+
+      contentWrapper.appendChild(video);
+    } else {
+      const img = document.createElement('img');
+      img.src = mediaSrc;
+      img.alt = 'Imagen de publicación';
+      img.style.maxWidth = '100%';
+      img.style.maxHeight = '95vh';
+      img.style.objectFit = 'contain';
+      img.style.borderRadius = '0.5rem';
+
+      contentWrapper.appendChild(img);
+    }
+
+    function closeModal() {
+      modal.remove();
+      document.body.style.overflow = '';
+      document.removeEventListener('keydown', handleEscape);
+    }
+
+    function handleEscape(event) {
+      if (event.key === 'Escape') closeModal();
+    }
+
+    closeBtn.addEventListener('click', closeModal);
+
+    modal.addEventListener('click', event => {
+      if (event.target === modal || event.target === contentWrapper) {
+        closeModal();
+      }
+    });
+
+    contentWrapper.addEventListener('click', event => {
+      event.stopPropagation();
+    });
+
+    modal.appendChild(closeBtn);
+    modal.appendChild(contentWrapper);
+    document.body.appendChild(modal);
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleEscape);
   }
 
   // ─── Feed de publicaciones ─────────────────────────────────────────────────
@@ -546,14 +801,24 @@ async function deletePost(postId, username) {
 
     const createdAt = post.createdAt || new Date().toISOString();
     const postTimeText = timeAgo(createdAt);
-
     const liked = Array.isArray(post.likes) ? post.likes.includes(currentUser.username) : false;
     const isOwner = post.author === currentUser.username;
 
-    const mediaHTML = post.mediaDataUrl
+    const mediaDataUrl = getPostMediaData(post);
+
+    const mediaHTML = mediaDataUrl
       ? post.mediaType === 'video'
-        ? `<video src="${post.mediaDataUrl}" controls class="w-full rounded-xl max-h-72 mt-3 object-cover bg-black"></video>`
-        : `<img src="${post.mediaDataUrl}" class="w-full rounded-xl max-h-72 mt-3 object-cover" />`
+        ? `<video 
+            src="${mediaDataUrl}" 
+            controls
+            class="post-media-preview w-full rounded-xl max-h-72 mt-3 object-cover bg-black cursor-pointer"
+            title="Click para ver video completo">
+          </video>`
+        : `<img 
+            src="${mediaDataUrl}" 
+            class="post-media-preview w-full rounded-xl max-h-72 mt-3 object-cover cursor-pointer"
+            alt="Imagen de publicación"
+            title="Click para ver imagen completa" />`
       : '';
 
     const commentsHTML = (post.comments || []).map(c => commentHTML(c, store, currentUser)).join('');
@@ -572,6 +837,7 @@ async function deletePost(postId, username) {
               </p>
             </div>
           </div>
+
           ${isOwner ? `<button type="button" class="delete-post-btn text-slate-300 hover:text-red-400 transition text-lg leading-none" title="Eliminar publicación">🗑</button>` : ''}
         </div>
 
@@ -594,9 +860,13 @@ async function deletePost(postId, username) {
 
           <div class="flex gap-2 items-center mt-4">
             ${avatarHTML(currentUser, 'w-8 h-8 text-sm')}
+
             <input type="text" placeholder="Escribe un comentario principal…" maxlength="300"
               class="comment-input flex-1 bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-            <button type="button" class="send-comment-btn bg-blue-500 hover:bg-blue-600 text-white rounded-xl px-3 py-2 text-sm transition">↩</button>
+
+            <button type="button" class="send-comment-btn bg-blue-500 hover:bg-blue-600 text-white rounded-xl px-3 py-2 text-sm transition">
+              ↩
+            </button>
           </div>
         </div>
       </article>`;
@@ -605,8 +875,23 @@ async function deletePost(postId, username) {
   function bindPostCard(card, currentUser) {
     function updateCommentCounter(post) {
       const countSpan = card.querySelector('.comment-toggle-btn span');
-      if (countSpan && post) countSpan.textContent = countPostComments(post);
+
+      if (countSpan && post) {
+        countSpan.textContent = countPostComments(post);
+      }
     }
+
+    card.querySelectorAll('.post-media-preview').forEach(mediaElement => {
+      mediaElement.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const mediaSrc = mediaElement.currentSrc || mediaElement.src;
+        const mediaType = mediaElement.tagName.toLowerCase() === 'video' ? 'video' : 'image';
+
+        openMediaViewer(mediaSrc, mediaType);
+      });
+    });
 
     function bindCommentReplies(commentItem) {
       const replyForm = commentItem.querySelector('.reply-form');
@@ -614,61 +899,62 @@ async function deletePost(postId, username) {
       const sendReplyBtn = commentItem.querySelector('.send-reply-btn');
       const repliesList = commentItem.querySelector('.comment-replies');
 
-      // DELEGACIÓN DE EVENTOS: Escuchamos TODOS los clics dentro del comentario entero.
-      // Esto asegura que los botones nuevos que nazcan después también funcionen.
-      commentItem.addEventListener('click', (e) => {
-         
-         // --- 1. Lógica si hicieron clic en el botón de ME GUSTA ---
-         const likeBtn = e.target.closest('.like-comment-btn');
-         if (likeBtn) {
-             const hotPostId = card.dataset.postId;
-             const targetCommentId = likeBtn.dataset.commentId;
-             const updatedTarget = toggleCommentLike(hotPostId, targetCommentId, currentUser.username);
-             
-             if(updatedTarget) {
-                 const liked = updatedTarget.likes.includes(currentUser.username);
-                 likeBtn.innerHTML = `<span>${liked ? '❤️' : '🤍'}</span> <span class="like-count">${updatedTarget.likes.length}</span>`;
-                 if (liked) {
-                     likeBtn.classList.add('text-red-500', 'font-bold');
-                 } else {
-                     likeBtn.classList.remove('text-red-500', 'font-bold');
-                 }
-             }
-             return; // Detenemos aquí para no procesar nada más
-         }
+      commentItem.addEventListener('click', event => {
+        const likeBtn = event.target.closest('.like-comment-btn');
 
-         // --- 2. Lógica si hicieron clic en el botón de RESPONDER ---
-         const replyBtn = e.target.closest('.reply-comment-btn');
-         if (replyBtn) {
-             replyForm?.classList.remove('hidden');
-             replyInput?.focus();
+        if (likeBtn) {
+          const hotPostId = card.dataset.postId;
+          const targetCommentId = likeBtn.dataset.commentId;
+          const updatedTarget = toggleCommentLike(hotPostId, targetCommentId, currentUser.username);
 
-             // MAGIA: Si el botón pertenece a una sub-respuesta, capturamos su @usuario
-             const replyCard = replyBtn.closest('.reply-item');
-            if (replyCard) {
-              const usernameElement = replyCard.querySelector('.comment-username');
-              const authorName = usernameElement ? usernameElement.textContent.trim() : '';
+          if (updatedTarget) {
+            const liked = updatedTarget.likes.includes(currentUser.username);
 
-              if (authorName && !replyInput.value.includes(authorName)) {
-                replyInput.value = `${authorName} ` + replyInput.value;
-              }
+            likeBtn.innerHTML = `<span>${liked ? '❤️' : '🤍'}</span> <span class="like-count">${updatedTarget.likes.length}</span>`;
+
+            if (liked) {
+              likeBtn.classList.add('text-red-500', 'font-bold');
+            } else {
+              likeBtn.classList.remove('text-red-500', 'font-bold');
             }
-         }
+          }
+
+          return;
+        }
+
+        const replyBtn = event.target.closest('.reply-comment-btn');
+
+        if (replyBtn) {
+          replyForm?.classList.remove('hidden');
+          replyInput?.focus();
+
+          const replyCard = replyBtn.closest('.reply-item');
+
+          if (replyCard) {
+            const usernameElement = replyCard.querySelector('.comment-username');
+            const authorName = usernameElement ? usernameElement.textContent.trim() : '';
+
+            if (authorName && !replyInput.value.includes(authorName)) {
+              replyInput.value = `${authorName} ` + replyInput.value;
+            }
+          }
+        }
       });
 
-      // Función para enviar la respuesta (Lectura en caliente intacta)
       function sendReply() {
         const hotPostId = card.dataset.postId;
-        const hotCommentId = commentItem.dataset.commentId; 
-        
+        const hotCommentId = commentItem.dataset.commentId;
         const text = replyInput?.value.trim();
+
         if (!text) return;
 
         const result = addReply(hotPostId, hotCommentId, currentUser.username, text);
+
         if (!result) return;
 
         const store = window.MicroConnectApp?.userStore;
         const div = document.createElement('div');
+
         div.innerHTML = replyHTML(result.reply, store, currentUser, hotCommentId);
 
         repliesList.classList.remove('hidden');
@@ -683,10 +969,10 @@ async function deletePost(postId, username) {
 
       sendReplyBtn?.addEventListener('click', sendReply);
 
-      replyInput?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            sendReply();
+      replyInput?.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          sendReply();
         }
       });
     }
@@ -698,6 +984,7 @@ async function deletePost(postId, username) {
     card.querySelector('.like-btn')?.addEventListener('click', () => {
       const currentPostId = card.dataset.postId;
       const post = toggleLike(currentPostId, currentUser.username);
+
       if (!post) return;
 
       const liked = post.likes.includes(currentUser.username);
@@ -714,10 +1001,12 @@ async function deletePost(postId, username) {
     card.querySelector('.send-comment-btn')?.addEventListener('click', () => {
       const input = card.querySelector('.comment-input');
       const text = input?.value.trim();
+
       if (!text) return;
 
-      const currentPostId = card.dataset.postId; 
+      const currentPostId = card.dataset.postId;
       const post = addComment(currentPostId, currentUser.username, text);
+
       if (!post) return;
 
       const store = window.MicroConnectApp?.userStore;
@@ -729,17 +1018,17 @@ async function deletePost(postId, username) {
 
       const commentItem = div.firstElementChild;
       list?.appendChild(commentItem);
-      
+
       bindCommentReplies(commentItem);
       updateCommentCounter(post);
 
       input.value = '';
     });
 
-    card.querySelector('.comment-input')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-          e.preventDefault();
-          card.querySelector('.send-comment-btn')?.click();
+    card.querySelector('.comment-input')?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        card.querySelector('.send-comment-btn')?.click();
       }
     });
 
@@ -773,18 +1062,39 @@ async function deletePost(postId, username) {
 
   function renderFeed(container, currentUser) {
     const posts = getPosts();
+
     if (posts.length === 0) {
       container.innerHTML = `<p class="text-slate-400 text-center py-10">Aún no hay publicaciones. ¡Sé el primero!</p>`;
       return;
     }
-    container.innerHTML = posts.map(p => postCardHTML(p, currentUser)).join('');
-    container.querySelectorAll('.post-card').forEach(card => bindPostCard(card, currentUser));
+
+    container.innerHTML = posts.map(post => postCardHTML(post, currentUser)).join('');
+
+    container.querySelectorAll('.post-card').forEach(card => {
+      bindPostCard(card, currentUser);
+    });
   }
 
   window.MicroConnectHomeShared = {
-    getCurrentUser, sanitize, timeAgo, createId, getPosts, savePosts, addPost,
-    toggleLike, toggleCommentLike, addComment, addReply, deletePost, countPostComments,
-    avatarHTML, renderSidebarUser, postCardHTML, bindPostCard, renderFeed
+    getCurrentUser,
+    sanitize,
+    timeAgo,
+    createId,
+    getPosts,
+    savePosts,
+    addPost,
+    toggleLike,
+    toggleCommentLike,
+    addComment,
+    addReply,
+    deletePost,
+    countPostComments,
+    avatarHTML,
+    renderSidebarUser,
+    postCardHTML,
+    bindPostCard,
+    renderFeed,
+    openMediaViewer
   };
 
   // ─── Contenido: Inicio ─────────────────────────────────────────────────────
@@ -795,45 +1105,60 @@ async function deletePost(postId, username) {
         <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-3">
           <div class="flex gap-3 items-start">
             ${avatarHTML(user)}
+
             <textarea id="postText" rows="3" maxlength="500" placeholder="¿Qué está pasando, @${sanitize(user.username)}?"
               class="flex-1 bg-slate-100 dark:bg-slate-800 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea>
           </div>
+
           <div id="mediaPreviewWrap" class="hidden">
             <div id="mediaPreview" class="relative"></div>
-            <button id="removeMediaBtn" class="text-xs text-red-400 hover:underline mt-1">✕ Quitar archivo</button>
+            <button id="removeMediaBtn" type="button" class="text-xs text-red-400 hover:underline mt-1">✕ Quitar archivo</button>
           </div>
+
           <div class="flex items-center justify-between flex-wrap gap-2">
             <div class="flex gap-2">
               <label class="cursor-pointer flex items-center gap-1 text-sm text-slate-400 hover:text-blue-400 transition">
                 Imagen
                 <input type="file" id="postImageInput" accept="image/png,image/jpeg,image/gif,image/webp" class="hidden" />
               </label>
+
               <label class="cursor-pointer flex items-center gap-1 text-sm text-slate-400 hover:text-blue-400 transition ml-4">
                 Video
                 <input type="file" id="postVideoInput" accept="video/mp4,video/webm,video/ogg" class="hidden" />
               </label>
             </div>
+
             <button id="publishBtn"
               class="bg-gradient-to-r from-blue-500 to-violet-500 hover:opacity-90 text-white font-semibold py-2 px-6 rounded-xl text-sm transition">
               Publicar
             </button>
           </div>
+
           <p id="postError" class="hidden text-red-500 text-xs"></p>
         </div>
+
         <div id="feedContainer" class="space-y-4"></div>
       </div>`;
   }
 
   function bindInicio(user) {
     const feedContainer = document.getElementById('feedContainer');
+
     renderFeed(feedContainer, user);
+
     let pendingMedia = null;
 
     function showMediaPreview(dataUrl, type) {
-      pendingMedia = { dataUrl, type };
+      pendingMedia = {
+        dataUrl,
+        type
+      };
+
       const wrap = document.getElementById('mediaPreviewWrap');
       const preview = document.getElementById('mediaPreview');
+
       wrap.classList.remove('hidden');
+
       preview.innerHTML = type === 'video'
         ? `<video src="${dataUrl}" controls class="w-full rounded-xl max-h-48 bg-black"></video>`
         : `<img src="${dataUrl}" class="w-full rounded-xl max-h-48 object-cover" />`;
@@ -841,9 +1166,18 @@ async function deletePost(postId, username) {
 
     function clearMedia() {
       pendingMedia = null;
+
       document.getElementById('mediaPreviewWrap')?.classList.add('hidden');
-      document.getElementById('postImageInput').value = '';
-      document.getElementById('postVideoInput').value = '';
+
+      const imageInput = document.getElementById('postImageInput');
+      const videoInput = document.getElementById('postVideoInput');
+
+      if (imageInput) imageInput.value = '';
+      if (videoInput) videoInput.value = '';
+
+      const preview = document.getElementById('mediaPreview');
+
+      if (preview) preview.innerHTML = '';
     }
 
     document.getElementById('removeMediaBtn')?.addEventListener('click', clearMedia);
@@ -851,14 +1185,42 @@ async function deletePost(postId, username) {
     function handleFileInput(input, type) {
       input?.addEventListener('change', () => {
         const file = input.files[0];
+
         if (!file) return;
+
+        const isImage = type === 'image';
+        const isVideo = type === 'video';
+
+        if (isImage && !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) {
+          alert('Solo se permiten imágenes PNG, JPG, GIF o WEBP.');
+          input.value = '';
+          return;
+        }
+
+        if (isVideo && !['video/mp4', 'video/webm', 'video/ogg'].includes(file.type)) {
+          alert('Solo se permiten videos MP4, WEBM u OGG.');
+          input.value = '';
+          return;
+        }
+
         if (file.size > 20 * 1024 * 1024) {
           alert('El archivo supera los 20 MB.');
           input.value = '';
           return;
         }
+
+        const otherInput = type === 'image'
+          ? document.getElementById('postVideoInput')
+          : document.getElementById('postImageInput');
+
+        if (otherInput) otherInput.value = '';
+
         const reader = new FileReader();
-        reader.onload = (e) => showMediaPreview(e.target.result, type);
+
+        reader.onload = event => {
+          showMediaPreview(event.target.result, type);
+        };
+
         reader.readAsDataURL(file);
       });
     }
@@ -867,7 +1229,8 @@ async function deletePost(postId, username) {
     handleFileInput(document.getElementById('postVideoInput'), 'video');
 
     document.getElementById('publishBtn')?.addEventListener('click', () => {
-      const text = document.getElementById('postText')?.value.trim();
+      const textInput = document.getElementById('postText');
+      const text = textInput?.value.trim();
       const errEl = document.getElementById('postError');
 
       if (!text && !pendingMedia) {
@@ -875,16 +1238,27 @@ async function deletePost(postId, username) {
         errEl.classList.remove('hidden');
         return;
       }
+
       errEl.classList.add('hidden');
 
-      const nuevoPostCreado = addPost(user.username, text, pendingMedia?.dataUrl || '', pendingMedia?.type || '');
-      document.getElementById('postText').value = '';
+      const nuevoPostCreado = addPost(
+        user.username,
+        text,
+        pendingMedia?.dataUrl || '',
+        pendingMedia?.type || ''
+      );
+
+      if (textInput) textInput.value = '';
+
       clearMedia();
 
       if (nuevoPostCreado) {
         const div = document.createElement('div');
+
         div.innerHTML = postCardHTML(nuevoPostCreado, user);
+
         const card = div.firstElementChild;
+
         feedContainer.prepend(card);
         bindPostCard(card, user);
         feedContainer.querySelector('p.text-slate-400')?.remove();
@@ -893,14 +1267,17 @@ async function deletePost(postId, username) {
   }
 
   // ─── Contenido: Notificaciones ─────────────────────────────────────────────
+
   function renderNotificaciones() {
     return `<div class="max-w-xl mx-auto"><p class="text-slate-400 text-center py-10">No tienes notificaciones nuevas.</p></div>`;
   }
 
   // ─── Contenido: Configuración ──────────────────────────────────────────────
+
   function renderConfiguracion() {
     const theme = localStorage.getItem('mc_theme') || 'light';
     const fontSize = localStorage.getItem('mc_font_size') || '16';
+
     return `
       <div class="max-w-md space-y-6">
         <div>
@@ -910,10 +1287,12 @@ async function deletePost(postId, username) {
             <option value="dark" ${theme === 'dark' ? 'selected' : ''}>Oscuro</option>
           </select>
         </div>
+
         <div>
           <label class="block font-semibold mb-2">Tamaño de letra: <span id="fontSizeLabel">${fontSize}px</span></label>
           <input type="range" id="fontSizeRange" min="12" max="22" value="${fontSize}" class="w-full accent-blue-500" />
         </div>
+
         <div>
           <button id="logoutBtn" class="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-xl transition">
             Cerrar sesión
@@ -923,15 +1302,19 @@ async function deletePost(postId, username) {
   }
 
   function bindConfiguracion() {
-    document.getElementById('themeSelect')?.addEventListener('change', (e) => {
-      window.MicroConnectApp.setTheme(e.target.value);
+    document.getElementById('themeSelect')?.addEventListener('change', event => {
+      window.MicroConnectApp.setTheme(event.target.value);
     });
+
     const range = document.getElementById('fontSizeRange');
     const label = document.getElementById('fontSizeLabel');
+
     range?.addEventListener('input', () => {
       const size = window.MicroConnectApp.setFontSize(range.value);
+
       if (label) label.textContent = `${size}px`;
     });
+
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
       window.MicroConnectAuth.clearSession();
       window.location.replace('../index.php');
@@ -939,30 +1322,60 @@ async function deletePost(postId, username) {
   }
 
   // ─── Navegación tabs ───────────────────────────────────────────────────────
+
   function renderTab(tabName) {
     const user = getCurrentUser();
     const content = document.getElementById('mainContent');
     const title = document.getElementById('screenTitle');
+
     if (!content || !title) return;
 
-    const titles = { inicio: 'Inicio', notificaciones: 'Notificaciones', perfil: 'Mi Perfil', configuracion: 'Configuración' };
+    const titles = {
+      inicio: 'Inicio',
+      notificaciones: 'Notificaciones',
+      perfil: 'Mi Perfil',
+      configuracion: 'Configuración'
+    };
+
     title.textContent = titles[tabName] || tabName;
 
     switch (tabName) {
-      case 'inicio': content.innerHTML = user ? renderInicio(user) : ''; if (user) bindInicio(user); break;
-      case 'notificaciones': content.innerHTML = renderNotificaciones(); break;
-      case 'perfil':
-        if (!user) { content.innerHTML = '<p>No se pudo cargar el perfil.</p>'; break; }
-        if (window.MicroConnectProfile?.mount) { window.MicroConnectProfile.mount(content, user); } 
-        else { content.innerHTML = '<p class="text-red-500">No se cargó MyProfile.js.</p>'; }
+      case 'inicio':
+        content.innerHTML = user ? renderInicio(user) : '';
+        if (user) bindInicio(user);
         break;
-      case 'configuracion': content.innerHTML = renderConfiguracion(); bindConfiguracion(); break;
+
+      case 'notificaciones':
+        content.innerHTML = renderNotificaciones();
+        break;
+
+      case 'perfil':
+        if (!user) {
+          content.innerHTML = '<p>No se pudo cargar el perfil.</p>';
+          break;
+        }
+
+        if (window.MicroConnectProfile?.mount) {
+          window.MicroConnectProfile.mount(content, user);
+        } else {
+          content.innerHTML = '<p class="text-red-500">No se cargó MyProfile.js.</p>';
+        }
+
+        break;
+
+      case 'configuracion':
+        content.innerHTML = renderConfiguracion();
+        bindConfiguracion();
+        break;
     }
   }
 
-  window.MicroConnectHome = { renderTab };
+  window.MicroConnectHome = {
+    renderTab
+  };
 
   // ─── Sidebar móvil / menú hamburguesa ──────────────────────────────────────
+
   function initMobileSidebar() {
     const menuToggle = document.getElementById('menuToggle');
     const sidebar = document.getElementById('sidebar');
@@ -974,34 +1387,57 @@ async function deletePost(postId, username) {
     if (!menuToggle || !sidebar || !overlay || !sidebarClose) return;
 
     function openSidebar() {
-      sidebar.classList.add('is-open'); overlay.classList.add('is-open');
-      menuToggle.style.display = 'none'; menuToggle.setAttribute('aria-expanded', 'true');
+      sidebar.classList.add('is-open');
+      overlay.classList.add('is-open');
+      menuToggle.style.display = 'none';
+      menuToggle.setAttribute('aria-expanded', 'true');
       document.body.style.overflow = 'hidden';
     }
 
     function closeSidebar() {
-      sidebar.classList.remove('is-open'); overlay.classList.remove('is-open');
-      menuToggle.style.display = ''; menuToggle.setAttribute('aria-expanded', 'false');
+      sidebar.classList.remove('is-open');
+      overlay.classList.remove('is-open');
+      menuToggle.style.display = '';
+      menuToggle.setAttribute('aria-expanded', 'false');
       document.body.style.overflow = '';
     }
 
     menuToggle.addEventListener('click', openSidebar);
     sidebarClose.addEventListener('click', closeSidebar);
-    if (sidebarBack) sidebarBack.addEventListener('click', closeSidebar);
+
+    if (sidebarBack) {
+      sidebarBack.addEventListener('click', closeSidebar);
+    }
+
     overlay.addEventListener('click', closeSidebar);
 
-    tabButtons.forEach(btn => btn.addEventListener('click', () => { if (window.innerWidth < 1024) closeSidebar(); }));
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
-    window.addEventListener('resize', () => { if (window.innerWidth >= 1024) closeSidebar(); });
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (window.innerWidth < 1024) closeSidebar();
+      });
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeSidebar();
+    });
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth >= 1024) closeSidebar();
+    });
   }
-  
+
   // ─── Init ──────────────────────────────────────────────────────────────────
+
   function init() {
     const user = getCurrentUser();
+
     if (!user) return;
+
     renderSidebarUser(user);
     initMobileSidebar();
+
     const tabs = document.querySelectorAll('.tab-btn');
+
     tabs.forEach(btn => {
       btn.addEventListener('click', () => {
         tabs.forEach(t => t.classList.remove('active-tab'));
@@ -1009,9 +1445,13 @@ async function deletePost(postId, username) {
         renderTab(btn.dataset.tab);
       });
     });
+
     renderTab('inicio');
   }
 
-  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } 
-  else { init(); }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();
