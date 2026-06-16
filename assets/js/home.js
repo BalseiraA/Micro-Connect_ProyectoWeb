@@ -16,15 +16,41 @@
     return String(value || '').replace(/[&<>'"`]/g, '').trim();
   }
 
-  function timeAgo(isoDate) {
-    const diff = Date.now() - new Date(isoDate).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'ahora mismo';
+  function timeAgo(dateString) {
+    if (!dateString) return 'ahora mismo';
+
+    const value = String(dateString).trim();
+
+    // Soporta fechas de MySQL: "2026-06-16 20:44:52"
+    // y fechas JS ISO: "2026-06-16T20:44:52.000Z"
+    const normalizedValue = value.includes('T') ? value : value.replace(' ', 'T');
+
+    const date = new Date(normalizedValue);
+
+    if (Number.isNaN(date.getTime())) {
+      return 'ahora mismo';
+    }
+
+    const diff = Date.now() - date.getTime();
+
+    // Si por zona horaria quedó en el futuro, no mostramos negativo.
+    if (diff < 0) return 'ahora mismo';
+
+    const seconds = Math.floor(diff / 1000);
+    const mins = Math.floor(seconds / 60);
+
+    if (seconds < 60) return 'ahora mismo';
     if (mins < 60) return `hace ${mins} min`;
+
     const hrs = Math.floor(mins / 60);
+
     if (hrs < 24) return `hace ${hrs} h`;
+
     const days = Math.floor(hrs / 24);
-    return `hace ${days} d`;
+
+    if (days < 7) return `hace ${days} d`;
+
+    return date.toLocaleDateString('es-MX');
   }
 
   function createId() {
@@ -50,9 +76,13 @@
     const posts = getPosts();
     const provisionalId = createId(); 
 
+    const currentUserData = window.MicroConnectApp?.userStore?.findUserByUsername(author);
+
     const post = {
-      id: provisionalId, 
+      id: provisionalId,
       author,
+      authorDisplayName: currentUserData?.displayName || author,
+      authorAvatar: currentUserData?.avatarDataUrl || '',
       text: sanitize(text),
       mediaDataUrl: mediaDataUrl || '',
       mediaType: mediaType || '',
@@ -441,7 +471,17 @@
 
   function postCardHTML(post, currentUser) {
     const store = window.MicroConnectApp?.userStore;
-    const author = store?.findUserByUsername(post.author) || { username: post.author };
+    const authorFromStore = store?.findUserByUsername(post.author);
+
+    const author = {
+      username: post.author,
+      displayName: post.authorDisplayName || authorFromStore?.displayName || post.author,
+      avatarDataUrl: post.authorAvatar || authorFromStore?.avatarDataUrl || ''
+    };
+
+    const createdAt = post.createdAt || new Date().toISOString();
+    const postTimeText = timeAgo(createdAt);
+
     const liked = Array.isArray(post.likes) ? post.likes.includes(currentUser.username) : false;
     const isOwner = post.author === currentUser.username;
 
@@ -459,8 +499,12 @@
           <div class="flex items-center gap-3">
             ${avatarHTML(author)}
             <div>
-              <p class="font-semibold leading-tight">${sanitize(author.displayName || author.username)}</p>
-              <p class="text-xs text-slate-400">@${sanitize(post.author)} · ${timeAgo(post.createdAt)}</p>
+              <p class="font-semibold leading-tight text-slate-900 dark:text-slate-100">
+                ${sanitize(author.displayName || author.username)}
+              </p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                @${sanitize(author.username)} · ${postTimeText}
+              </p>
             </div>
           </div>
           ${isOwner ? `<button type="button" class="delete-post-btn text-slate-300 hover:text-red-400 transition text-lg leading-none" title="Eliminar publicación">🗑</button>` : ''}

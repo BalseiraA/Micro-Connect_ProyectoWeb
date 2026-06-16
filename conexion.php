@@ -1,4 +1,6 @@
 <?php
+
+date_default_timezone_set('America/Mexico_City');
 // conexion.php
 
 $host = "127.0.0.1:3306"; // Asegúrate de usar el puerto correcto si es necesario
