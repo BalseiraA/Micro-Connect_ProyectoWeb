@@ -1,12 +1,15 @@
 <?php
-// 1. Validar sesión en el servidor local y evitar cache del navegador
-session_start();
+// 1. Iniciar el motor de sesiones de forma segura y evitar el caché del navegador
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
 header("Expires: Sat, 01 Jan 2000 00:00:00 GMT");
 
+// 2. Control de Cierre de Sesión (Logout)
 if (isset($_GET['logout'])) {
     $_SESSION = [];
 
@@ -28,21 +31,23 @@ if (isset($_GET['logout'])) {
     exit();
 }
 
+// 3. Control de Seguridad: Si no hay usuario activo, mandarlo de vuelta al login
 if (!isset($_SESSION['usuario'])) {
     header("Location: ../index.php", true, 303);
     exit();
 }
 
 $usuarioLoggeado = $_SESSION['usuario'];
+$idUsuarioLoggeado = $usuarioLoggeado; // Homologamos ambas variables para evitar conflictos en las consultas
 
-// 2. Conectar a la base de datos 
+// 4. Conectar a la base de datos 
 include("../conexion.php");
 
-// 3. Traer los datos del usuario loggeado (Nombre, Biografía, etc.) 
+// 5. Traer los datos de perfil del usuario loggeado
 $queryUser = mysqli_query($conexion, "SELECT * FROM tUsuario WHERE idUsuario = '$usuarioLoggeado'");
 $datosUsuario = mysqli_fetch_assoc($queryUser);
 
-// 4. MATCH PERFECTO CON TU DDL: Seleccionamos contenidoTextoPub y fechaHoraPub
+// 6. MATCH PERFECTO CON TU DDL: Consultar publicaciones de la base de datos
 $queryPosts = "SELECT p.idPublicacion as id, 
                       p.idUsuario as author, 
                       p.contenidoTextoPub as text, 
@@ -61,7 +66,7 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     $row['id'] = (int)$row['id'];
     $currentPostId = $row['id'];
     
-    // Identificamos dinámicamente si la cadena Base64 corresponde a una imagen o video
+    // Identificar dinámicamente el tipo de multimedia (Base64 o URL)
     $row['mediaType'] = '';
     if (!empty($row['mediaDataUrl'])) {
         if (strpos($row['mediaDataUrl'], 'data:video/') !== false) {
@@ -73,7 +78,7 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
         $row['mediaDataUrl'] = ''; 
     }
     
-    // Traer los usuarios que le dieron like a esta publicación desde MySQL
+    // Traer los likes asociados a la publicación
     $queryLikes = "SELECT idUsuario FROM tLikePublicacion WHERE idPublicacion = $currentPostId";
     $resultadoLikes = mysqli_query($conexion, $queryLikes);
     
@@ -83,8 +88,7 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     }
     $row['likes'] = $likesArray;     
     
-    // Extraemos los comentarios haciendo un LEFT JOIN con tUsuario 
-    // AGREGADO: c.idComentario (id) y c.idComentarioPadre (parentId)
+    // Extraer los comentarios y estructurar respuestas anidadas (Comentario Padre / Hijo)
     $queryComentarios = "SELECT c.idComentario as id, 
                                 c.idComentarioPadre as parentId,
                                 c.idUsuario as author, 
@@ -101,11 +105,10 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
     $respuestas = [];
 
     while ($comentRow = mysqli_fetch_assoc($resultadoComent)) {
-        // Conservamos el ID REAL de la base de datos
         $comentRow['id'] = (int)$comentRow['id'];
         $commentId = $comentRow['id'];
         
-        // Traemos los usuarios que le dieron like a ESTE comentario
+        // Consultar los likes del comentario actual
         $queryLikesComent = "SELECT idUsuario FROM tLikeComentario WHERE idComentario = $commentId";
         $resultadoLikesComent = mysqli_query($conexion, $queryLikesComent);
         $likesComentArray = [];
@@ -114,19 +117,17 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
         }
         $comentRow['likes'] = $likesComentArray; 
         
-        $comentRow['replies'] = []; // Preparamos el array de respuestas
+        $comentRow['replies'] = []; // Inicializar espacio para respuestas
         
-        // Clasificamos si es comentario principal o respuesta
+        // Clasificación estructural
         if (is_null($comentRow['parentId'])) {
-            // Lo guardamos usando su ID como clave para buscarlo rápido después
             $comentariosPrincipales[$commentId] = $comentRow;
         } else {
-            // Va al arreglo temporal de respuestas
             $respuestas[] = $comentRow;
         }
     }
     
-    // Anidamos las respuestas dentro de su respectivo comentario padre
+    // Anidar respuestas hijas en sus respectivos padres
     foreach ($respuestas as $respuesta) {
         $idPadre = $respuesta['parentId'];
         if (isset($comentariosPrincipales[$idPadre])) {
@@ -134,12 +135,11 @@ while ($row = mysqli_fetch_assoc($resultadoPosts)) {
         }
     }
     
-    // Convertimos el diccionario a un array simple para el JSON
     $row['comments'] = array_values($comentariosPrincipales);
     $postsArray[] = $row;
 }
 
-// Convertimos los arrays de PHP a formato JSON crudo
+// Conversión segura de arreglos nativos a JSON crudo para JavaScript
 $jsonUsuario = json_encode($datosUsuario);
 $jsonPosts = json_encode($postsArray);
 ?>
@@ -196,17 +196,15 @@ $jsonPosts = json_encode($postsArray);
       const postsBase = <?php echo $jsonPosts; ?>;
       
       const postsLigeros = postsBase.map(post => {
-          // Limpiamos los pesados Base64 de los avatares en comentarios
           const comentariosLimpios = (post.comments || []).map(c => {
-              // Limpiamos las respuestas anidadas también
               const respuestasLimpias = (c.replies || []).map(r => ({
                   ...r,
-                  commentAuthorAvatar: '' // Vaciamos el peso
+                  commentAuthorAvatar: ''
               }));
               
               return {
                   ...c,
-                  commentAuthorAvatar: '', // Vaciamos el peso
+                  commentAuthorAvatar: '',
                   replies: respuestasLimpias
               };
           });
@@ -272,16 +270,13 @@ $jsonPosts = json_encode($postsArray);
         };
       }
 
-      // Interceptor pasivo: No fuerza redibujados manuales, evita borrar la caja de creación
       const acoplarInterceptores = () => {
           if (window.MicroConnectHomeShared && window.MicroConnectHomeShared.renderFeed) {
               const originalRenderFeed = window.MicroConnectHomeShared.renderFeed;
               
               window.MicroConnectHomeShared.renderFeed = function(container, currentUser) {
-                  // Permitimos que la SPA monte la caja de creación y las publicaciones de forma nativa
                   originalRenderFeed(container, currentUser);
                   
-                  // Una vez renderizado el DOM original, le acoplamos las imágenes correspondientes
                   postsBase.forEach(post => {
                       const tarjeta = container.querySelector(`[data-post-id="${post.id}"]`);
                       if (tarjeta) {
@@ -377,7 +372,7 @@ $jsonPosts = json_encode($postsArray);
               }
             }
 
-            // 2. LÓGICA DE RENDERIZADO DE TARJETAS EN EL PANEL CENTRAL
+            // 2. LÓGICA DE RENDERIZADO EN EL PANEL CENTRAL
             const contenedorLista = document.getElementById('contenedor-lista-notificaciones'); 
             
             if (!contenedorLista) return; 
