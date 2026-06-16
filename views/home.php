@@ -293,7 +293,7 @@ $jsonPosts = json_encode($postsArray);
                           }
                           
                           if (post.authorAvatar) {
-                              const avatarContenedor = tarjeta.querySelector('.flex.items-center.gap-3');
+                              const avatarContenedor = container.querySelector(`[data-post-id="${post.id}"] .flex.items-center.gap-3`);
                               if (avatarContenedor) {
                                   const imgAvatar = avatarContenedor.querySelector('img');
                                   if (imgAvatar) {
@@ -358,37 +358,80 @@ $jsonPosts = json_encode($postsArray);
 
   <script>
     (function() {
-      // Función asíncrona que consume el endpoint PHP de manera recurrente
       async function consultarNotificacionesNuevas() {
         try {
           const respuesta = await fetch('obtenerNotificaciones.php');
           const resultado = await respuesta.json();
 
           if (resultado.status === 'success') {
-            // Contamos cuántas notificaciones en el arreglo vienen como "no leídas" (leido === 0)
+            // 1. LÓGICA DEL GLOBITO ROJO EN SIDEBAR
             const noLeidas = resultado.data.filter(notif => notif.leido === 0).length;
             const badge = document.getElementById('badgeNotificaciones');
 
             if (badge) {
               if (noLeidas > 0) {
                 badge.innerText = noLeidas;
-                badge.classList.remove('hidden'); // Mostramos el contador flotante rojo
+                badge.classList.remove('hidden');
               } else {
-                badge.classList.add('hidden');    // Ocultamos si no hay nuevas
+                badge.classList.add('hidden');
               }
             }
+
+            // 2. LÓGICA DE RENDERIZADO DE TARJETAS EN EL PANEL CENTRAL
+            const contenedorLista = document.getElementById('contenedor-lista-notificaciones'); 
+            
+            if (!contenedorLista) return; 
+
+            if (resultado.data.length === 0) {
+              contenedorLista.innerHTML = '<p class="text-muted text-center mt-4">No tienes notificaciones nuevas.</p>';
+              return;
+            }
+
+            contenedorLista.innerHTML = '';
+
+            resultado.data.forEach(notif => {
+              let mensajeAccion = '';
+              let iconoEmoticono = '🔔';
+
+              if (notif.tipo === 'like' || notif.tipo === 'LIKE') {
+                mensajeAccion = 'le dio like a tu publicación';
+                iconoEmoticono = '❤️';
+              } else if (notif.tipo === 'comentario' || notif.tipo === 'COMENTARIO') {
+                mensajeAccion = 'comentó tu publicación';
+                iconoEmoticono = '💬';
+              } else {
+                mensajeAccion = 'interactuó contigo';
+              }
+
+              const tarjetaHTML = `
+                <div class="card mb-3 shadow-sm border-0" style="background-color: #f4f8ff; border-radius: 15px; margin: 10px 0;">
+                    <div class="card-body d-flex align-items-center" style="padding: 15px 20px;">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white font-weight-bold" 
+                             style="width: 45px; height: 45px; background: linear-gradient(45deg, #7f00ff, #e100ff); flex-shrink: 0; margin-right: 15px; font-size: 1.2rem;">
+                            ${notif.usuario.nombre.charAt(0).toUpperCase()}
+                        </div>
+                        
+                        <div style="flex-grow: 1;">
+                            <p class="mb-0" style="color: #2c3e50; font-size: 0.95rem; line-height: 1.4;">
+                                <span style="color: #e100ff;">${iconoEmoticono}</span> 
+                                <strong>@${notif.usuario.nombre}</strong> ${mensajeAccion}
+                            </p>
+                            <small class="text-muted" style="font-size: 0.8rem;">hace un momento</small>
+                        </div>
+                    </div>
+                </div>
+              `;
+
+              contenedorLista.innerHTML += tarjetaHTML;
+            });
           }
         } catch (error) {
           console.error("Error concurrente en el módulo de notificaciones:", error);
         }
       }
 
-      // 1. Ejecución inmediata al cargar la página
       document.addEventListener('DOMContentLoaded', () => {
         consultarNotificacionesNuevas();
-        
-        // 2. Proceso Concurrente: Consulta asíncrona en segundo plano cada 15 segundos
-        // Satisface los requerimientos de sincronía de datos sin saturar el servidor apache
         setInterval(consultarNotificacionesNuevas, 15000);
       });
     })();
