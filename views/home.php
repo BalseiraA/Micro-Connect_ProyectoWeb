@@ -218,10 +218,10 @@ $jsonPosts = json_encode($postsArray);
               createdAt: post.createdAt,
               mediaType: post.mediaType,
               likes: post.likes || [],
-              comments: comentariosLimpios, // Inyectamos los comentarios ya aligerados
+              comments: comentariosLimpios,
               authorDisplayName: post.authorDisplayName || post.author,
-              mediaDataUrl: '', // Se mantiene vacío para evitar colapsos
-              authorAvatar: ''  // Se mantiene vacío
+              mediaDataUrl: post.mediaDataUrl || '',
+              authorAvatar: ''
           };
       });
       
