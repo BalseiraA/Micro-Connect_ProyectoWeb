@@ -1,9 +1,6 @@
-# DROP DATABASE IF EXISTS microconnect;
-
-/*
+DROP DATABASE IF EXISTS microconnect;
 CREATE DATABASE microconnect COLLATE = utf8mb4_unicode_ci;
 USE microconnect;
-*/
 
 # ─── TABLA: tUsuario ──────────────────────────────────────────────────
 CREATE TABLE tUsuario (
@@ -52,18 +49,22 @@ CREATE TABLE tSeguidor (
         ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE = INNODB COMMENT 'Tabla que contiene a todos los usuarios que siguen y son seguidos en el sitio';
     
-# ─── TABLA: tComentario (CORREGIDA) ───────────────────────────────────
+# ─── TABLA: tComentario ───────────────────────────────────────────────
 CREATE TABLE tComentario (
     idComentario INT AUTO_INCREMENT PRIMARY KEY COMMENT 'Identificador único del comentario realizado', 
     idUsuario VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario que comentó',
     idPublicacion INT NOT NULL COMMENT 'Identificador de la publicación que fue comentada',
     textoComent VARCHAR(200) NOT NULL COMMENT 'Texto del comentario',
     fechaHoraComent DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT 'Fecha y hora en que se realizó el comentario',
+    idComentarioPadre INT NULL COMMENT 'Identificador del comentario al que se responde (NULL si es principal)',
     CONSTRAINT fkUsuarioComentario
         FOREIGN KEY (idUsuario) REFERENCES tUsuario(idUsuario)
         ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fkPublicacionComentario
         FOREIGN KEY (idPublicacion) REFERENCES tPublicacion(idPublicacion)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fkComentarioPadre
+        FOREIGN KEY (idComentarioPadre) REFERENCES tComentario(idComentario)
         ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE = INNODB COMMENT 'Tabla que contiene todos los comentarios de una publicación';
 
@@ -84,7 +85,7 @@ CREATE TABLE tLikePublicacion (
 # ─── TABLA: tLikeComentario ───────────────────────────────────────────
 CREATE TABLE tLikeComentario (
     idUsuario VARCHAR(20) NOT NULL COMMENT 'Identificador del usuario que dió el like',
-    idComentario INT NOT NULL COMMENT 'Identificador del comentario que recibió el like', -- ─── Apuntamos directo al INT autoincremental
+    idComentario INT NOT NULL COMMENT 'Identificador del comentario que recibió el like',
     fechaHoraLikeComent DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     PRIMARY KEY (idUsuario, idComentario),
     CONSTRAINT fkUsuarioDaLikeComent
@@ -94,27 +95,16 @@ CREATE TABLE tLikeComentario (
         FOREIGN KEY (idComentario) REFERENCES tComentario(idComentario) 
         ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE = INNODB COMMENT 'Tabla que contiene todos los likes a comentarios';
+
+# ─── TABLA: tNotificacion ─────────────────────────────────────────────
 CREATE TABLE tNotificacion (
     idNotificacion INT AUTO_INCREMENT PRIMARY KEY,
     tipoNotificacion VARCHAR(50) NOT NULL,
     idReferencia INT NOT NULL,
     leido TINYINT(1) DEFAULT 0,
     fechaHoraNotif TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    idUsuarioOrigen VARCHAR(50) NOT NULL,
-    idUsuarioDestino VARCHAR(50) NOT NULL,
-    FOREIGN KEY (idUsuarioOrigen) REFERENCES tusuario(idUsuario) ON DELETE CASCADE,
-    FOREIGN KEY (idUsuarioDestino) REFERENCES tusuario(idUsuario) ON DELETE CASCADE
-);
-
-/*
-Creación de idComentarioPadre para referenciar comentarios y poder validar si es padre o hijo
-
---Ejecutar:
-USE microconnect;
-ALTER TABLE tComentario
-ADD COLUMN idComentarioPadre INT NULL COMMENT 'Identificador del comentario al que se responde (NULL si es principal)',
-ADD CONSTRAINT fkComentarioPadre
-    FOREIGN KEY (idComentarioPadre) REFERENCES tComentario(idComentario)
-    ON UPDATE CASCADE ON DELETE CASCADE;
-*/
-
+    idUsuarioOrigen VARCHAR(20) NOT NULL, -- CORREGIDO: cambiado de 50 a 20 para hacer match con tUsuario
+    idUsuarioDestino VARCHAR(20) NOT NULL, -- CORREGIDO: cambiado de 50 a 20 para hacer match con tUsuario
+    FOREIGN KEY (idUsuarioOrigen) REFERENCES tUsuario(idUsuario) ON DELETE CASCADE,
+    FOREIGN KEY (idUsuarioDestino) REFERENCES tUsuario(idUsuario) ON DELETE CASCADE
+) ENGINE = INNODB COMMENT 'Tabla para la gestión de alertas y notificaciones asíncronas';
